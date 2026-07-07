@@ -31,7 +31,15 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+
+# Vercel
+.vercel
+
+# Cursor / exports temporaires
+.expo-tmp-export*/
+.cursor/
 
 # typescript
 *.tsbuildinfo
