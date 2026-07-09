@@ -34,15 +34,21 @@ function flowLabel(flow: DayEntry['flow']): string | null {
   return FLOW_OPTIONS.find((f) => f.id === flow)?.label ?? flow;
 }
 
-function skinLabel(skin: DayEntry['skin']): string | null {
-  if (!skin) return null;
-  const map = { nickel: 'Peau : bonne', ok: 'Peau : correcte', acne: 'Peau : acné' };
-  return map[skin];
+function skinLabels(skin: DayEntry['skin']): string[] {
+  if (!skin?.length) return [];
+  const map: Record<string, string> = {
+    nickel: 'Peau nickel',
+    ok: 'Peau ok',
+    acne: 'Acné',
+    grasse: 'Peau grasse',
+    seche: 'Peau sèche',
+  };
+  return skin.map((s) => map[s] ?? s);
 }
 
-function dischargeLabel(d: DayEntry['discharge']): string | null {
-  if (!d) return null;
-  return d === 'blanches' ? 'Pertes blanches' : 'Pertes marrones';
+function dischargeLabels(d: DayEntry['discharge']): string[] {
+  if (!d?.length) return [];
+  return d.map((id) => (id === 'blanches' ? 'Pertes blanches' : 'Pertes marrones'));
 }
 
 function formatDayDetails(entry: DayEntry): string[] {
@@ -53,13 +59,13 @@ function formatDayDetails(entry: DayEntry): string[] {
     lines.push(flux ? `Règles (flux ${flux.toLowerCase()})` : 'Règles');
   }
 
-  const discharge = dischargeLabel(entry.discharge);
-  if (discharge) lines.push(discharge);
+  const discharge = dischargeLabels(entry.discharge);
+  for (const line of discharge) lines.push(line);
 
-  const skin = skinLabel(entry.skin);
-  if (skin) lines.push(skin);
+  for (const line of skinLabels(entry.skin)) lines.push(line);
 
   for (const key of extractSymptomKeys(entry)) {
+    if (key.startsWith('skin:') || key.startsWith('discharge:')) continue;
     lines.push(getSymptomLabel(key));
   }
 
@@ -124,14 +130,17 @@ function buildDailyLogRows(data: CycleData): string {
 }
 
 function buildInsightsList(data: CycleData): string {
-  const { insights, ready } = computeSymptomCorrelations(data);
-  if (!ready || insights.length === 0) {
-    return '<p class="muted">Pas assez de cycles pour établir des corrélations fiables (minimum 3 débuts de règles).</p>';
+  const { insights } = computeSymptomCorrelations(data);
+  if (insights.length === 0) {
+    return `<p class="muted">Pas assez de données pour établir des corrélations (note tes symptômes sur au moins 2 jours d'une même phase).</p>`;
   }
 
   return `<ul class="insights">${insights
     .slice(0, 10)
-    .map((i) => `<li>${escapeHtml(i.sentence)}</li>`)
+    .map((i) => {
+      const suffix = i.confidence === 'tentative' ? ' (à confirmer)' : '';
+      return `<li>${escapeHtml(i.sentence)}${suffix}</li>`;
+    })
     .join('')}</ul>`;
 }
 

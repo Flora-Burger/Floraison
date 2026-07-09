@@ -1,10 +1,12 @@
-import { PERIOD_FLOW } from './theme';
+import { PERIOD_FLOW, TRACK_COLORS } from './theme';
 import type {
+  Discharge,
   Flow,
   FoodCraving,
   MoodTag,
   PhysicalSymptom,
   SexualActivity,
+  Skin,
   SleepQuality,
   SymptomKey,
 } from '../types/cycle';
@@ -16,6 +18,11 @@ export const FLOW_OPTIONS: { id: Flow; label: string; tint: string }[] = [
   { id: 'tres_abondant', label: 'Très abondant', tint: PERIOD_FLOW.tres_abondant },
 ];
 
+export const DISCHARGE_OPTIONS: { id: Discharge; label: string }[] = [
+  { id: 'blanches', label: 'Blanches' },
+  { id: 'marrons', label: 'Marrons' },
+];
+
 export const PHYSICAL_OPTIONS: { id: PhysicalSymptom; label: string }[] = [
   { id: 'crampes', label: 'Crampes / douleurs abdominales' },
   { id: 'migraine', label: 'Maux de tête / migraines' },
@@ -24,10 +31,17 @@ export const PHYSICAL_OPTIONS: { id: PhysicalSymptom; label: string }[] = [
   { id: 'ballonnements', label: 'Ballonnements' },
   { id: 'nausees', label: 'Nausées' },
   { id: 'fatigue', label: 'Fatigue' },
-  { id: 'acne', label: 'Acné' },
   { id: 'troubles_digestifs', label: 'Troubles digestifs' },
   { id: 'bouffees_chaleur', label: 'Bouffées de chaleur' },
   { id: 'vertiges', label: 'Vertiges' },
+];
+
+export const SKIN_OPTIONS: { id: Skin; label: string }[] = [
+  { id: 'nickel', label: 'Nickel' },
+  { id: 'ok', label: 'Ok' },
+  { id: 'acne', label: 'Acné' },
+  { id: 'grasse', label: 'Grasse' },
+  { id: 'seche', label: 'Sèche' },
 ];
 
 export const MOOD_OPTIONS: { id: MoodTag; label: string }[] = [
@@ -66,6 +80,16 @@ export const SEXUAL_OPTIONS: { id: SexualActivity; label: string }[] = [
   { id: 'masturbation', label: 'Masturbation' },
 ];
 
+export const TRACK_CATEGORY_TINTS = {
+  discharge: TRACK_COLORS.discharge,
+  physical: TRACK_COLORS.physical,
+  skin: TRACK_COLORS.skin,
+  mood: TRACK_COLORS.mood,
+  sleep: TRACK_COLORS.sleep,
+  cravings: TRACK_COLORS.cravings,
+  sexual: TRACK_COLORS.sexual,
+} as const;
+
 const LABEL_MAP = new Map<SymptomKey, string>();
 
 function registerLabels(prefix: string, options: { id: string; label: string }[]) {
@@ -79,11 +103,8 @@ registerLabels('mood', MOOD_OPTIONS);
 registerLabels('sleep', SLEEP_OPTIONS);
 registerLabels('craving', CRAVING_OPTIONS);
 registerLabels('sexual', SEXUAL_OPTIONS);
-LABEL_MAP.set('skin:nickel', 'Peau nickel');
-LABEL_MAP.set('skin:ok', 'Peau ok');
-LABEL_MAP.set('skin:acne', 'Acné');
-LABEL_MAP.set('discharge:blanches', 'Pertes blanches');
-LABEL_MAP.set('discharge:marrons', 'Pertes marrones');
+registerLabels('skin', SKIN_OPTIONS);
+registerLabels('discharge', DISCHARGE_OPTIONS);
 
 export function getSymptomLabel(key: SymptomKey): string {
   return LABEL_MAP.get(key) ?? key;

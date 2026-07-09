@@ -111,3 +111,15 @@ export function getCycleContextForDate(data: CycleData, date: string): CycleCont
 export function getPhaseForDate(data: CycleData, date: string): CyclePhaseId | null {
   return getCycleContextForDate(data, date)?.phase ?? null;
 }
+
+export function cycleDayToDate(periodStart: string, cycleDay: number): string {
+  return addDays(periodStart, cycleDay - 1);
+}
+
+/** Jours restants avant le début des prochaines règles prévues (0 = règles ce jour-là). */
+export function getDaysUntilNextPeriod(data: CycleData, date: string): number | null {
+  const ctx = getCycleContextForDate(data, date);
+  if (!ctx) return null;
+  const nextPeriodStart = addDays(ctx.periodStart, ctx.cycleLength);
+  return Math.max(0, daysBetween(date, nextPeriodStart));
+}

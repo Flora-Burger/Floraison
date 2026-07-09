@@ -58,7 +58,7 @@ export function CorpsTab({ data }: CorpsTabProps) {
           <Text style={styles.heroHeadline}>{hero.headline}</Text>
           <Text style={styles.heroSubtitle}>{hero.subtitle}</Text>
           <Text style={styles.heroSymptoms}>{hero.symptomsLine}</Text>
-          <CycleWheel context={ctx} />
+          <CycleWheel data={data} />
         </View>
       ) : (
         <View style={styles.heroCardEmpty}>

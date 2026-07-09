@@ -1,5 +1,5 @@
 export type Flow = 'leger' | 'moyen' | 'fort' | 'tres_abondant';
-export type Skin = 'nickel' | 'ok' | 'acne';
+export type Skin = 'nickel' | 'ok' | 'acne' | 'grasse' | 'seche';
 export type Discharge = 'blanches' | 'marrons';
 
 export type PhysicalSymptom =
@@ -10,7 +10,6 @@ export type PhysicalSymptom =
   | 'ballonnements'
   | 'nausees'
   | 'fatigue'
-  | 'acne'
   | 'troubles_digestifs'
   | 'bouffees_chaleur'
   | 'vertiges';
@@ -50,11 +49,11 @@ export type SexualActivity =
 export type DayEntry = {
   period?: boolean;
   flow?: Flow;
-  discharge?: Discharge;
-  skin?: Skin;
+  discharge?: Discharge[];
+  skin?: Skin[];
   physical?: PhysicalSymptom[];
   mood?: MoodTag[];
-  sleep?: SleepQuality;
+  sleep?: SleepQuality[];
   cravings?: FoodCraving[];
   sexual?: SexualActivity[];
   journal?: string;
@@ -65,6 +64,9 @@ export type DayEntry = {
 export type CycleData = Record<string, DayEntry>;
 
 export type CyclePhaseId = 'menstruelle' | 'folliculaire' | 'ovulatoire' | 'luteale';
+
+/** Fenêtre des 7 jours précédant les prochaines règles (insights uniquement). */
+export type InsightPhaseId = CyclePhaseId | 'avant_regles';
 
 export type SymptomKey =
   | `physical:${PhysicalSymptom}`

@@ -1,4 +1,4 @@
-import type { DayEntry, PhysicalSymptom, CycleData } from '../types/cycle';
+import type { DayEntry, PhysicalSymptom, CycleData, Discharge, Skin, SleepQuality } from '../types/cycle';
 
 const LEGACY_SYMPTOM_MAP: Record<string, PhysicalSymptom> = {
   Crampes: 'crampes',
@@ -6,6 +6,11 @@ const LEGACY_SYMPTOM_MAP: Record<string, PhysicalSymptom> = {
   'Seins sensibles': 'seins_sensibles',
   Ballonnements: 'ballonnements',
 };
+
+function toArray<T extends string>(value: T | T[] | undefined): T[] | undefined {
+  if (value === undefined) return undefined;
+  return Array.isArray(value) ? value : [value];
+}
 
 export function migrateDayEntry(raw: DayEntry): DayEntry {
   const e: DayEntry = { ...raw };
@@ -33,6 +38,17 @@ export function migrateDayEntry(raw: DayEntry): DayEntry {
     delete e.symptoms;
   }
 
+  e.discharge = toArray<Discharge>(e.discharge as Discharge | Discharge[] | undefined);
+  e.skin = toArray<Skin>(e.skin as Skin | Skin[] | undefined);
+  e.sleep = toArray<SleepQuality>(e.sleep as SleepQuality | SleepQuality[] | undefined);
+
+  if (e.physical?.includes('acne' as PhysicalSymptom)) {
+    e.physical = e.physical.filter((x) => x !== ('acne' as PhysicalSymptom));
+    const skin = [...(e.skin ?? [])];
+    if (!skin.includes('acne')) skin.push('acne');
+    e.skin = skin;
+  }
+
   return e;
 }
 
@@ -42,6 +58,9 @@ export function sanitizeDayEntry(e: DayEntry): DayEntry {
   if (out.mood?.length === 0) delete out.mood;
   if (out.cravings?.length === 0) delete out.cravings;
   if (out.sexual?.length === 0) delete out.sexual;
+  if (out.discharge?.length === 0) delete out.discharge;
+  if (out.skin?.length === 0) delete out.skin;
+  if (out.sleep?.length === 0) delete out.sleep;
   delete out.symptoms;
   delete (out as { libido?: number }).libido;
   return out;

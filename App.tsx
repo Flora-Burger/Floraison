@@ -47,14 +47,18 @@ import {
   SAGE_LIGHT,
   TEXT,
   ICON_SIZES,
+  TRACK_COLORS,
 } from './src/constants/theme';
 import {
   CRAVING_OPTIONS,
+  DISCHARGE_OPTIONS,
   FLOW_OPTIONS,
   MOOD_OPTIONS,
   PHYSICAL_OPTIONS,
   SEXUAL_OPTIONS,
+  SKIN_OPTIONS,
   SLEEP_OPTIONS,
+  TRACK_CATEGORY_TINTS,
 } from './src/constants/symptoms';
 import { addDays, parseDateKey, todayKey } from './src/lib/dates';
 import {
@@ -71,7 +75,6 @@ import {
   applyDayPatch,
   migrateCycleData,
   toggleMulti,
-  toggleSingle,
 } from './src/lib/dayEntry';
 import { isEmptyDayEntry } from './src/lib/cycleInsights';
 import { getStoredPin, removeStoredPin, setStoredPin as persistPin } from './src/lib/pinStorage';
@@ -83,6 +86,9 @@ import type {
   MoodTag,
   PhysicalSymptom,
   SexualActivity,
+  Skin,
+  SleepQuality,
+  Discharge,
 } from './src/types/cycle';
 
 LocaleConfig.locales.fr = {
@@ -123,6 +129,97 @@ type AppPhase = 'loading' | 'pin' | 'auth' | 'reset-password' | 'main';
 
 type AuthMode = 'login' | 'signup';
 
+const CALENDAR_DAY_SIZE = 32;
+const CALENDAR_DAY_RADIUS = CALENDAR_DAY_SIZE / 2;
+const CALENDAR_DOT_SIZE = 5;
+/** Espace autour du cercle pour les points sur le contour. */
+const CALENDAR_RING_SIZE = CALENDAR_DAY_SIZE + CALENDAR_DOT_SIZE + 4;
+const CALENDAR_RING_CENTER = CALENDAR_RING_SIZE / 2;
+const CALENDAR_DOT_ORBIT = CALENDAR_DAY_RADIUS + CALENDAR_DOT_SIZE / 2;
+
+function getContourDotPositions(count: number): { left: number; top: number }[] {
+  return Array.from({ length: count }, (_, index) => {
+    const angle = (2 * Math.PI * index) / count - Math.PI / 2;
+    return {
+      left: CALENDAR_RING_CENTER + CALENDAR_DOT_ORBIT * Math.cos(angle) - CALENDAR_DOT_SIZE / 2,
+      top: CALENDAR_RING_CENTER + CALENDAR_DOT_ORBIT * Math.sin(angle) - CALENDAR_DOT_SIZE / 2,
+    };
+  });
+}
+
+/** Points colorés sous chaque jour du calendrier (une couleur par catégorie renseignée). */
+function getTrackingDotColors(entry: DayEntry | undefined): string[] {
+  if (!entry) return [];
+  const dots: string[] = [];
+  if (entry.discharge?.length) dots.push(TRACK_COLORS.discharge);
+  if (entry.physical?.length) dots.push(TRACK_COLORS.physical);
+  if (entry.skin?.length) dots.push(TRACK_COLORS.skin);
+  if (entry.mood?.length) dots.push(TRACK_COLORS.mood);
+  if (entry.sleep?.length) dots.push(TRACK_COLORS.sleep);
+  if (entry.cravings?.length) dots.push(TRACK_COLORS.cravings);
+  if (entry.sexual?.length) dots.push(TRACK_COLORS.sexual);
+  return dots;
+}
+
+function TrackingCalendarDay({
+  date,
+  state,
+  marking,
+  onPress,
+  entry,
+}: {
+  date: DateData;
+  state: string;
+  marking?: { customStyles?: { container?: object; text?: object } };
+  onPress?: (d: DateData) => void;
+  entry?: DayEntry;
+}) {
+  const containerStyle = marking?.customStyles?.container;
+  const textStyle = marking?.customStyles?.text;
+  const dots = getTrackingDotColors(entry);
+  const isDisabled = state === 'disabled';
+  const isToday = state === 'today';
+
+  const dotPositions = getContourDotPositions(dots.length);
+
+  return (
+    <View style={styles.calendarDayWrapper}>
+      <View style={styles.calendarDayRing}>
+        <TouchableOpacity
+          style={[
+            styles.calendarDayCell,
+            isToday && !containerStyle && styles.calendarDayToday,
+            containerStyle,
+          ]}
+          onPress={() => onPress?.(date)}
+          disabled={isDisabled}
+          activeOpacity={0.7}
+        >
+          <Text
+            style={[
+              styles.calendarDayText,
+              textStyle,
+              isDisabled && styles.calendarDayTextDisabled,
+            ]}
+          >
+            {date.day}
+          </Text>
+        </TouchableOpacity>
+        {dots.map((color, index) => (
+          <View
+            key={`${color}-${index}`}
+            style={[
+              styles.calendarDayDot,
+              dotPositions[index],
+              { backgroundColor: color },
+            ]}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function periodDayStyle(flow: Flow | undefined, predicted: boolean) {
   const bg = predicted
     ? PERIOD_FLOW.predicted
@@ -133,7 +230,7 @@ function periodDayStyle(flow: Flow | undefined, predicted: boolean) {
     customStyles: {
       container: {
         backgroundColor: bg,
-        borderRadius: 18,
+        borderRadius: CALENDAR_DAY_RADIUS,
         ...(predicted ? { borderWidth: 1, borderColor: ROSE + '44' } : {}),
       },
       text: {
@@ -147,7 +244,10 @@ function periodDayStyle(flow: Flow | undefined, predicted: boolean) {
 function fertilityDayStyle() {
   return {
     customStyles: {
-      container: { backgroundColor: FERTILITY + '55', borderRadius: 18 },
+      container: {
+        backgroundColor: FERTILITY + '55',
+        borderRadius: CALENDAR_DAY_RADIUS,
+      },
       text: { color: TEXT, fontWeight: '500' as const },
     },
   };
@@ -159,7 +259,7 @@ function ovulationDayStyle() {
     customStyles: {
       container: {
         backgroundColor: OVULATION_BG,
-        borderRadius: 20,
+        borderRadius: CALENDAR_DAY_RADIUS,
         borderWidth: 2.5,
         borderColor: OVULATION_RING,
       },
@@ -212,7 +312,7 @@ function buildMarkedDates(data: CycleData, selected: string) {
           ...((prev?.customStyles as { container?: object })?.container ?? {}),
           borderWidth: 2.5,
           borderColor: SAGE,
-          borderRadius: 18,
+          borderRadius: CALENDAR_DAY_RADIUS,
         },
       },
     };
@@ -280,6 +380,9 @@ function formatAuthError(e: unknown): string {
   }
   if (msg.includes('User already registered')) {
     return 'Un compte existe déjà avec cet email. Connectez-vous ou confirmez votre email.';
+  }
+  if (msg.includes('Network request failed')) {
+    return 'Impossible de joindre le serveur. Vérifiez votre connexion internet et la configuration Supabase (.env), puis redémarrez Expo.';
   }
   return msg || 'Erreur de connexion';
 }
@@ -477,8 +580,10 @@ function Chip({
     <TouchableOpacity
       style={[
         styles.chip,
-        selected && styles.chipSelected,
-        selected && tint ? { backgroundColor: tint + 'CC', borderColor: tint } : null,
+        selected &&
+          (tint
+            ? { backgroundColor: tint + '28', borderColor: tint, borderWidth: 1.5 }
+            : styles.chipSelected),
       ]}
       onPress={onPress}
     >
@@ -511,6 +616,10 @@ function DayForm({
     onChange({ cravings: toggleMulti(entry.cravings, id) });
   const toggleSexual = (id: SexualActivity) =>
     onChange({ sexual: toggleMulti(entry.sexual, id) });
+  const toggleDischarge = (id: Discharge) =>
+    onChange({ discharge: toggleMulti(entry.discharge, id) });
+  const toggleSkin = (id: Skin) => onChange({ skin: toggleMulti(entry.skin, id) });
+  const toggleSleep = (id: SleepQuality) => onChange({ sleep: toggleMulti(entry.sleep, id) });
 
   const handleJournal = (text: string) => {
     onChange({ journal: text });
@@ -631,16 +740,15 @@ function DayForm({
       <View style={styles.section}>
         <Text style={styles.label}>Pertes</Text>
         <View style={styles.chipRow}>
-          <Chip
-            label="⚪ Blanches"
-            selected={entry.discharge === 'blanches'}
-            onPress={() => onChange({ discharge: toggleSingle(entry.discharge, 'blanches') })}
-          />
-          <Chip
-            label="🟤 Marrons"
-            selected={entry.discharge === 'marrons'}
-            onPress={() => onChange({ discharge: toggleSingle(entry.discharge, 'marrons') })}
-          />
+          {DISCHARGE_OPTIONS.map((opt) => (
+            <Chip
+              key={opt.id}
+              label={opt.label}
+              selected={(entry.discharge ?? []).includes(opt.id)}
+              onPress={() => toggleDischarge(opt.id)}
+              tint={TRACK_CATEGORY_TINTS.discharge}
+            />
+          ))}
         </View>
       </View>
 
@@ -653,6 +761,22 @@ function DayForm({
               label={opt.label}
               selected={(entry.physical ?? []).includes(opt.id)}
               onPress={() => togglePhysical(opt.id)}
+              tint={TRACK_CATEGORY_TINTS.physical}
+            />
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.label}>Peau</Text>
+        <View style={styles.chipRow}>
+          {SKIN_OPTIONS.map((opt) => (
+            <Chip
+              key={opt.id}
+              label={opt.label}
+              selected={(entry.skin ?? []).includes(opt.id)}
+              onPress={() => toggleSkin(opt.id)}
+              tint={TRACK_CATEGORY_TINTS.skin}
             />
           ))}
         </View>
@@ -667,6 +791,7 @@ function DayForm({
               label={opt.label}
               selected={(entry.mood ?? []).includes(opt.id)}
               onPress={() => toggleMood(opt.id)}
+              tint={TRACK_CATEGORY_TINTS.mood}
             />
           ))}
         </View>
@@ -679,8 +804,9 @@ function DayForm({
             <Chip
               key={opt.id}
               label={opt.label}
-              selected={entry.sleep === opt.id}
-              onPress={() => onChange({ sleep: toggleSingle(entry.sleep, opt.id) })}
+              selected={(entry.sleep ?? []).includes(opt.id)}
+              onPress={() => toggleSleep(opt.id)}
+              tint={TRACK_CATEGORY_TINTS.sleep}
             />
           ))}
         </View>
@@ -695,6 +821,7 @@ function DayForm({
               label={opt.label}
               selected={(entry.cravings ?? []).includes(opt.id)}
               onPress={() => toggleCraving(opt.id)}
+              tint={TRACK_CATEGORY_TINTS.cravings}
             />
           ))}
         </View>
@@ -709,29 +836,9 @@ function DayForm({
               label={opt.label}
               selected={(entry.sexual ?? []).includes(opt.id)}
               onPress={() => toggleSexual(opt.id)}
+              tint={TRACK_CATEGORY_TINTS.sexual}
             />
           ))}
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.label}>Peau</Text>
-        <View style={styles.chipRow}>
-          <Chip
-            label="✨ Nickel"
-            selected={entry.skin === 'nickel'}
-            onPress={() => onChange({ skin: toggleSingle(entry.skin, 'nickel') })}
-          />
-          <Chip
-            label="👌 Ok"
-            selected={entry.skin === 'ok'}
-            onPress={() => onChange({ skin: toggleSingle(entry.skin, 'ok') })}
-          />
-          <Chip
-            label="🌋 Acné"
-            selected={entry.skin === 'acne'}
-            onPress={() => onChange({ skin: toggleSingle(entry.skin, 'acne') })}
-          />
         </View>
       </View>
     </View>
@@ -757,6 +864,27 @@ function SuiviTab({
 
   const entry = data[selectedDate] ?? {};
 
+  const renderCalendarDay = useCallback(
+    (props: {
+      date?: DateData;
+      state?: string;
+      marking?: object;
+      onPress?: (d: DateData) => void;
+    }) => {
+      if (!props.date) return <View style={styles.calendarDayWrapper} />;
+      return (
+        <TrackingCalendarDay
+          date={props.date}
+          state={props.state ?? ''}
+          marking={props.marking as { customStyles?: { container?: object; text?: object } }}
+          onPress={props.onPress}
+          entry={data[props.date.dateString]}
+        />
+      );
+    },
+    [data],
+  );
+
   return (
     <ScrollView style={styles.tabScroll} contentContainerStyle={styles.tabContent}>
       <View style={styles.calendarCard}>
@@ -765,6 +893,7 @@ function SuiviTab({
           onDayPress={(day: DateData) => onSelectDate(day.dateString)}
           markingType="custom"
           markedDates={markedDates}
+          dayComponent={renderCalendarDay as never}
           firstDay={1}
           theme={{
             backgroundColor: 'transparent',
@@ -780,7 +909,15 @@ function SuiviTab({
             textDayFontWeight: '500',
             textMonthFontWeight: '700',
             textDayHeaderFontSize: 12,
-          }}
+            'stylesheet.day.basic': {
+              base: {
+                flex: 1,
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: CALENDAR_RING_SIZE + 4,
+              },
+            },
+          } as never}
           style={styles.calendar}
         />
       </View>
@@ -1163,6 +1300,42 @@ const styles = StyleSheet.create({
     }),
   },
   calendar: { borderRadius: 16 },
+  calendarDayWrapper: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: CALENDAR_RING_SIZE + 4,
+  },
+  calendarDayRing: {
+    width: CALENDAR_RING_SIZE,
+    height: CALENDAR_RING_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarDayCell: {
+    width: CALENDAR_DAY_SIZE,
+    height: CALENDAR_DAY_SIZE,
+    borderRadius: CALENDAR_DAY_RADIUS,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarDayToday: {
+    backgroundColor: SAGE_LIGHT + '55',
+  },
+  calendarDayText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: TEXT,
+  },
+  calendarDayTextDisabled: {
+    color: BORDER,
+  },
+  calendarDayDot: {
+    position: 'absolute',
+    width: CALENDAR_DOT_SIZE,
+    height: CALENDAR_DOT_SIZE,
+    borderRadius: CALENDAR_DOT_SIZE / 2,
+  },
   legend: {
     flexDirection: 'row',
     flexWrap: 'wrap',

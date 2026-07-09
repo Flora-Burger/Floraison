@@ -24,3 +24,14 @@ export const MUTED = '#9A8B94';
 
 export const ICON_SIZES = { tab: 24, card: 20, header: 22 } as const;
 export const ICON_COLORS = { active: ROSE_DEEP, inactive: MUTED } as const;
+
+/** Couleurs des catégories de suivi (chips + points calendrier). */
+export const TRACK_COLORS = {
+  discharge: '#9A8B94',
+  physical: '#2D5A3D',
+  skin: '#8FAE8B',
+  mood: '#E8C547',
+  sleep: '#4A7FB8',
+  cravings: '#8B5E3C',
+  sexual: '#B85C6E',
+} as const;
