@@ -1,25 +1,14 @@
 import { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import type { IconProps } from 'phosphor-react-native';
-import {
-  Bell,
-  ChartLine,
-  Cookie,
-  Drop,
-  Heart,
-  MoonStars,
-  Pulse,
-  Smiley,
-  Sparkle,
-} from 'phosphor-react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Bell, ChartLine, Sparkle } from 'phosphor-react-native';
 import type { CycleData, CyclePhaseId, InsightPhaseId } from '../types/cycle';
 import {
   computeSymptomCorrelations,
   type SymptomInsight,
   type TimelineSegment,
-  type TrackCategoryId,
   type UpcomingAlert,
 } from '../lib/cycleInsights';
+import { getArticleIdForInsight } from '../lib/insightArticles';
 import { getCycleContextForDate } from '../lib/cyclePhase';
 import { formatPhaseHero, getPhaseById } from '../constants/cycleContent';
 import { parseDateKey, todayKey } from '../lib/dates';
@@ -35,21 +24,11 @@ import {
   SAGE,
   SAGE_LIGHT,
   TEXT,
-  TRACK_COLORS,
 } from '../constants/theme';
 
 type InsightsTabProps = {
   data: CycleData;
-};
-
-const CATEGORY_ICONS: Record<TrackCategoryId, React.ComponentType<IconProps>> = {
-  discharge: Drop,
-  physical: Pulse,
-  skin: Sparkle,
-  mood: Smiley,
-  sleep: MoonStars,
-  cravings: Cookie,
-  sexual: Heart,
+  onLearnMore?: (articleId: string) => void;
 };
 
 function phaseColor(phase: InsightPhaseId): string {
@@ -76,17 +55,32 @@ function RateBar({ rate, color }: { rate: number; color: string }) {
   );
 }
 
-function InsightCard({ insight }: { insight: SymptomInsight }) {
-  const accent =
-    insight.kind === 'category' && insight.categoryId
-      ? TRACK_COLORS[insight.categoryId]
-      : ROSE;
+function LearnMoreButton({
+  insight,
+  onLearnMore,
+}: {
+  insight: SymptomInsight;
+  onLearnMore?: (articleId: string) => void;
+}) {
+  const articleId = getArticleIdForInsight(insight);
+  if (!articleId || !onLearnMore) return null;
+  return (
+    <TouchableOpacity style={styles.learnMoreBtn} onPress={() => onLearnMore(articleId)}>
+      <Text style={styles.learnMoreText}>En savoir plus →</Text>
+    </TouchableOpacity>
+  );
+}
+
+function InsightCard({
+  insight,
+  onLearnMore,
+}: {
+  insight: SymptomInsight;
+  onLearnMore?: (articleId: string) => void;
+}) {
+  const accent = ROSE;
   const phaseTint = phaseColor(insight.phase);
   const pct = Math.round(insight.rate * 100);
-  const Icon =
-    insight.kind === 'category' && insight.categoryId
-      ? CATEGORY_ICONS[insight.categoryId]
-      : ChartLine;
 
   return (
     <View style={[styles.insightCard, { borderColor: accent + '44' }]}>
@@ -94,7 +88,7 @@ function InsightCard({ insight }: { insight: SymptomInsight }) {
       <View style={styles.insightCardInner}>
         <View style={styles.insightTopRow}>
           <View style={[styles.insightIconWrap, { backgroundColor: accent + '28' }]}>
-            <Icon size={20} weight="duotone" color={accent} />
+            <ChartLine size={20} weight="duotone" color={accent} />
           </View>
           <View style={styles.insightTitleBlock}>
             <Text style={styles.insightTitle} numberOfLines={2}>
@@ -129,6 +123,7 @@ function InsightCard({ insight }: { insight: SymptomInsight }) {
             </View>
           )}
         </View>
+        <LearnMoreButton insight={insight} onLearnMore={onLearnMore} />
       </View>
     </View>
   );
@@ -142,16 +137,15 @@ function formatShortDate(key: string): string {
   });
 }
 
-function HeroInsightCard({ insight }: { insight: SymptomInsight }) {
-  const accent =
-    insight.kind === 'category' && insight.categoryId
-      ? TRACK_COLORS[insight.categoryId]
-      : ROSE_DEEP;
+function HeroInsightCard({
+  insight,
+  onLearnMore,
+}: {
+  insight: SymptomInsight;
+  onLearnMore?: (articleId: string) => void;
+}) {
+  const accent = ROSE_DEEP;
   const pct = Math.round(insight.rate * 100);
-  const Icon =
-    insight.kind === 'category' && insight.categoryId
-      ? CATEGORY_ICONS[insight.categoryId]
-      : ChartLine;
 
   return (
     <View style={[styles.heroCard, { borderColor: accent + '55' }]}>
@@ -169,7 +163,7 @@ function HeroInsightCard({ insight }: { insight: SymptomInsight }) {
       </View>
       <View style={styles.heroMain}>
         <View style={[styles.heroIconWrap, { backgroundColor: accent + '30' }]}>
-          <Icon size={28} weight="duotone" color={accent} />
+          <ChartLine size={28} weight="duotone" color={accent} />
         </View>
         <View style={styles.heroTextBlock}>
           <Text style={styles.heroLabel}>{insight.label}</Text>
@@ -182,6 +176,7 @@ function HeroInsightCard({ insight }: { insight: SymptomInsight }) {
         Présent sur {insight.evidenceDays} jour{insight.evidenceDays > 1 ? 's' : ''} noté
         {insight.evidenceDays > 1 ? 's' : ''} — c'est ce qui revient le plus dans ton suivi
       </Text>
+      <LearnMoreButton insight={insight} onLearnMore={onLearnMore} />
     </View>
   );
 }
@@ -210,7 +205,7 @@ function CycleTimeline({
     <View style={styles.timelineCard}>
       <Text style={styles.timelineTitle}>Ton cycle en un coup d'œil</Text>
       <Text style={styles.timelineHint}>
-        Points colorés = catégories où tu notes souvent
+        Points colorés = symptômes qui reviennent souvent
       </Text>
       <View style={styles.timelineBar}>
         {segments.map((seg) => (
@@ -315,21 +310,16 @@ function CycleProgressBar({
   );
 }
 
-export function InsightsTab({ data }: InsightsTabProps) {
+export function InsightsTab({ data, onLearnMore }: InsightsTabProps) {
   const result = useMemo(() => computeSymptomCorrelations(data), [data]);
   const ctx = useMemo(() => getCycleContextForDate(data, todayKey()), [data]);
 
   const phase = ctx ? getPhaseById(ctx.phase) : null;
   const phaseSummary = phase ? formatPhaseHero(phase) : null;
 
-  const hasInsights =
-    result.categoryInsights.length > 0 || result.symptomInsights.length > 0;
-  const totalPatterns =
-    result.categoryInsights.length + result.symptomInsights.length;
+  const hasInsights = result.symptomInsights.length > 0;
+  const totalPatterns = result.symptomInsights.length;
   const heroId = result.heroInsight?.id;
-  const categoryList = heroId
-    ? result.categoryInsights.filter((i) => i.id !== heroId)
-    : result.categoryInsights;
   const symptomList = heroId
     ? result.symptomInsights.filter((i) => i.id !== heroId)
     : result.symptomInsights;
@@ -403,7 +393,7 @@ export function InsightsTab({ data }: InsightsTabProps) {
         <>
           {result.heroInsight ? (
             <View style={styles.heroSection}>
-              <HeroInsightCard insight={result.heroInsight} />
+              <HeroInsightCard insight={result.heroInsight} onLearnMore={onLearnMore} />
             </View>
           ) : null}
 
@@ -418,18 +408,6 @@ export function InsightsTab({ data }: InsightsTabProps) {
 
           <UpcomingSection alerts={result.upcoming} />
 
-          {categoryList.length > 0 ? (
-            <View style={styles.insightsSection}>
-              <Text style={styles.sectionLabel}>Par catégorie</Text>
-              <Text style={styles.sectionHint}>
-                Où tu notes le plus souvent chaque type de suivi
-              </Text>
-              {categoryList.map((insight) => (
-                <InsightCard key={insight.id} insight={insight} />
-              ))}
-            </View>
-          ) : null}
-
           {symptomList.length > 0 ? (
             <View style={styles.insightsSection}>
               <Text style={styles.sectionLabel}>Symptômes marquants</Text>
@@ -437,7 +415,7 @@ export function InsightsTab({ data }: InsightsTabProps) {
                 Ce qui revient le plus dans ton cycle
               </Text>
               {symptomList.map((insight) => (
-                <InsightCard key={insight.id} insight={insight} />
+                <InsightCard key={insight.id} insight={insight} onLearnMore={onLearnMore} />
               ))}
             </View>
           ) : null}
@@ -875,5 +853,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: MUTED,
     lineHeight: 16,
+  },
+  learnMoreBtn: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: BG_SOFT,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  learnMoreText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: ROSE_DEEP,
   },
 });

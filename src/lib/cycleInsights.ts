@@ -257,17 +257,11 @@ export function getInsightPhaseForDate(
 }
 
 function insightAccentColor(insight: SymptomInsight): string {
-  if (insight.kind === 'category' && insight.categoryId) {
-    return TRACK_COLORS[insight.categoryId];
-  }
   return TRACK_COLORS.physical;
 }
 
-function pickHeroInsight(
-  symptomInsights: SymptomInsight[],
-  categoryInsights: SymptomInsight[],
-): SymptomInsight | null {
-  return symptomInsights[0] ?? categoryInsights[0] ?? null;
+function pickHeroInsight(symptomInsights: SymptomInsight[]): SymptomInsight | null {
+  return symptomInsights[0] ?? null;
 }
 
 function buildTimeline(
@@ -312,10 +306,9 @@ function computeUpcomingAlerts(
   const alerts: UpcomingAlert[] = [];
   const usedIds = new Set<string>();
 
-  const candidates = [
-    ...insights.filter((i) => i.kind === 'symptom'),
-    ...insights.filter((i) => i.kind === 'category'),
-  ].sort((a, b) => b.rate - a.rate);
+  const candidates = insights
+    .filter((i) => i.kind === 'symptom')
+    .sort((a, b) => b.rate - a.rate);
 
   for (const insight of candidates) {
     if (usedIds.has(insight.id)) continue;
@@ -358,10 +351,8 @@ export function computeSymptomCorrelations(data: CycleData): CorrelationResult {
 
   const loggedInPhase = emptyPhaseRecord(0);
   const num: Partial<Record<SymptomKey, Record<CyclePhaseId, number>>> = {};
-  const categoryNum: Partial<Record<TrackCategoryId, Record<CyclePhaseId, number>>> = {};
 
   const preMenstrualNum: Partial<Record<SymptomKey, number>> = {};
-  const preMenstrualCategoryNum: Partial<Record<TrackCategoryId, number>> = {};
   let preMenstrualLoggedCount = 0;
 
   const cycleLength = computeAvgCycleLength(data);
@@ -384,12 +375,6 @@ export function computeSymptomCorrelations(data: CycleData): CorrelationResult {
             if (!num[s]) num[s] = emptyPhaseRecord(0);
             num[s]![ctx.phase]++;
           }
-          for (const cat of TRACK_CATEGORIES) {
-            if (entryHasCategory(entry, cat)) {
-              if (!categoryNum[cat]) categoryNum[cat] = emptyPhaseRecord(0);
-              categoryNum[cat]![ctx.phase]++;
-            }
-          }
         }
 
         const daysUntil = getDaysUntilNextPeriod(data, d);
@@ -404,11 +389,6 @@ export function computeSymptomCorrelations(data: CycleData): CorrelationResult {
           for (const s of symptoms) {
             preMenstrualNum[s] = (preMenstrualNum[s] ?? 0) + 1;
           }
-          for (const cat of TRACK_CATEGORIES) {
-            if (entryHasCategory(entry, cat)) {
-              preMenstrualCategoryNum[cat] = (preMenstrualCategoryNum[cat] ?? 0) + 1;
-            }
-          }
         }
       }
       d = addDays(d, 1);
@@ -417,7 +397,6 @@ export function computeSymptomCorrelations(data: CycleData): CorrelationResult {
 
   const rates: SymptomCorrelationMap = {};
   const symptomInsights: SymptomInsight[] = [];
-  const categoryInsights: SymptomInsight[] = [];
 
   for (const [symptomKey, phaseCounts] of Object.entries(num) as [SymptomKey, Record<CyclePhaseId, number>][]) {
     const phaseRates = emptyPhaseRecord(0);
@@ -468,60 +447,12 @@ export function computeSymptomCorrelations(data: CycleData): CorrelationResult {
     }
   }
 
-  for (const cat of TRACK_CATEGORIES) {
-    const phaseCounts = categoryNum[cat];
-    if (!phaseCounts) continue;
-
-    let bestPhase: InsightPhaseId | null = null;
-    let bestRate = 0;
-    let bestEvidence = 0;
-
-    for (const phaseId of PHASE_IDS) {
-      if (loggedInPhase[phaseId] < MIN_LOGGED_DAYS_IN_PHASE) continue;
-      const rate = phaseCounts[phaseId] / loggedInPhase[phaseId];
-      if (rate >= MIN_DISPLAY_RATE && rate > bestRate) {
-        bestRate = rate;
-        bestPhase = phaseId;
-        bestEvidence = phaseCounts[phaseId];
-      }
-    }
-
-    const preCount = preMenstrualCategoryNum[cat] ?? 0;
-    if (preMenstrualLoggedCount >= MIN_LOGGED_DAYS_IN_PHASE) {
-      const preRate = preCount / preMenstrualLoggedCount;
-      if (preRate >= MIN_DISPLAY_RATE && preRate > bestRate) {
-        bestRate = preRate;
-        bestPhase = 'avant_regles';
-        bestEvidence = preCount;
-      }
-    }
-
-    if (bestPhase) {
-      const label = CATEGORY_LABELS[cat];
-      categoryInsights.push({
-        id: makeInsightId('category', bestPhase, cat),
-        kind: 'category',
-        categoryId: cat,
-        label,
-        phase: bestPhase,
-        phaseLabel: getInsightPhaseLabel(bestPhase),
-        rate: bestRate,
-        sentence: formatCategoryInsightSentence(label, bestPhase, bestRate),
-        confidence,
-        evidenceDays: bestEvidence,
-      });
-    }
-  }
-
   const dedupedSymptoms = dedupeLutealVsPremenstrual(symptomInsights).sort(
     (a, b) => b.rate - a.rate,
   );
-  const dedupedCategories = dedupeLutealVsPremenstrual(categoryInsights).sort(
-    (a, b) => b.rate - a.rate,
-  );
 
-  const heroInsight = pickHeroInsight(dedupedSymptoms, dedupedCategories);
-  const allInsights = [...dedupedCategories, ...dedupedSymptoms];
+  const heroInsight = pickHeroInsight(dedupedSymptoms);
+  const allInsights = dedupedSymptoms;
   const { segments: timeline, position: timelinePosition } = buildTimeline(data, allInsights);
   const upcoming = computeUpcomingAlerts(data, allInsights);
 
@@ -531,7 +462,7 @@ export function computeSymptomCorrelations(data: CycleData): CorrelationResult {
     minCyclesRequired: MIN_CYCLES,
     rates,
     insights: allInsights,
-    categoryInsights: dedupedCategories,
+    categoryInsights: [],
     symptomInsights: dedupedSymptoms,
     heroInsight,
     timeline,

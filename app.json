@@ -23,6 +23,14 @@
       },
       "predictiveBackGestureEnabled": false
     },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "color": "#B85C6E"
+        }
+      ]
+    ],
     "web": {
       "favicon": "./assets/icon-192.png",
       "bundler": "metro",

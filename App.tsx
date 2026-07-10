@@ -24,6 +24,8 @@ import { Calendar, DateData, LocaleConfig } from 'react-native-calendars';
 import { BookOpen, Drop } from 'phosphor-react-native';
 import { CorpsTab } from './src/components/CorpsTab';
 import { InsightsTab } from './src/components/InsightsTab';
+import { OnboardingScreen } from './src/components/OnboardingScreen';
+import { CalendarTrackingLegend } from './src/components/CalendarTrackingLegend';
 import { PinPad } from './src/components/PinPad';
 import { SettingsTab } from './src/components/SettingsTab';
 import { PasswordResetScreen } from './src/components/PasswordResetScreen';
@@ -76,6 +78,8 @@ import {
   migrateCycleData,
   toggleMulti,
 } from './src/lib/dayEntry';
+import { hasCompletedOnboarding, setOnboardingCompleted } from './src/lib/onboardingStorage';
+import { syncAllReminders } from './src/lib/notifications';
 import { isEmptyDayEntry } from './src/lib/cycleInsights';
 import { getStoredPin, removeStoredPin, setStoredPin as persistPin } from './src/lib/pinStorage';
 import type {
@@ -125,7 +129,7 @@ const supabase =
       })
     : null;
 
-type AppPhase = 'loading' | 'pin' | 'auth' | 'reset-password' | 'main';
+type AppPhase = 'loading' | 'pin' | 'auth' | 'reset-password' | 'onboarding' | 'main';
 
 type AuthMode = 'login' | 'signup';
 
@@ -640,7 +644,6 @@ function DayForm({
   const month = d.toLocaleDateString('fr-FR', { month: 'long' });
   const dayNum = d.getDate();
   const hasJournal = !!(entry.journal && entry.journal.trim());
-
   return (
     <View style={styles.card}>
       <View style={styles.floralCardAccent} />
@@ -935,6 +938,7 @@ function SuiviTab({
           <Text style={styles.legendText}>Ovulation</Text>
         </View>
       </View>
+      <CalendarTrackingLegend />
       <Text style={styles.cycleHint}>
         {hasHistory
           ? `Prédictions : cycle ~${cycleLength} j · règles ~${periodDays} j (moyennes calculées)`
@@ -958,8 +962,14 @@ export default function App() {
   const [cycleData, setCycleData] = useState<CycleData>({});
   const [activeTab, setActiveTab] = useState<TabId>('suivi');
   const [selectedDate, setSelectedDate] = useState(todayKey());
+  const [highlightTopicId, setHighlightTopicId] = useState<string | null>(null);
   const [syncError, setSyncError] = useState('');
   const [loadingData, setLoadingData] = useState(false);
+
+  const enterMainApp = useCallback(async () => {
+    const done = await hasCompletedOnboarding();
+    setPhase(done ? 'main' : 'onboarding');
+  }, []);
 
   const afterPinUnlock = useCallback(async () => {
     if (!supabase) {
@@ -977,17 +987,34 @@ export default function App() {
       try {
         const loaded = await loadCycleData(data.session.user.id);
         setCycleData(loaded);
-        setPhase('main');
+        await enterMainApp();
       } catch {
         setSyncError('Impossible de charger vos données.');
-        setPhase('main');
+        await enterMainApp();
       } finally {
         setLoadingData(false);
       }
     } else {
       setPhase('auth');
     }
+  }, [enterMainApp]);
+
+  const handleOnboardingComplete = useCallback(async () => {
+    await setOnboardingCompleted();
+    await syncAllReminders(cycleData);
+    setPhase('main');
+  }, [cycleData]);
+
+  const handleLearnMore = useCallback((articleId: string) => {
+    setHighlightTopicId(articleId);
+    setActiveTab('corps');
   }, []);
+
+  useEffect(() => {
+    if (phase === 'main' && Object.keys(cycleData).length > 0) {
+      void syncAllReminders(cycleData);
+    }
+  }, [cycleData, phase]);
 
   const processAuthUrl = useCallback(async (url: string | null): Promise<boolean> => {
     if (!url || !supabase) return false;
@@ -1048,10 +1075,10 @@ export default function App() {
     try {
       const loaded = await loadCycleData(s.user.id);
       setCycleData(loaded);
-      setPhase('main');
+      await enterMainApp();
     } catch {
       setSyncError('Impossible de charger vos données.');
-      setPhase('main');
+      await enterMainApp();
     } finally {
       setLoadingData(false);
     }
@@ -1163,6 +1190,10 @@ export default function App() {
     );
   }
 
+  if (phase === 'onboarding') {
+    return <OnboardingScreen onComplete={() => void handleOnboardingComplete()} />;
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
@@ -1184,9 +1215,9 @@ export default function App() {
             onUpdateDay={updateDay}
           />
         ) : activeTab === 'insights' ? (
-          <InsightsTab data={cycleData} />
+          <InsightsTab data={cycleData} onLearnMore={handleLearnMore} />
         ) : activeTab === 'corps' ? (
-          <CorpsTab data={cycleData} />
+          <CorpsTab data={cycleData} highlightTopicId={highlightTopicId} />
         ) : (
           <SettingsTab
             data={cycleData}

@@ -90,3 +90,16 @@ export function applyDayPatch(current: DayEntry, patch: Partial<DayEntry>): DayE
   });
   return sanitizeDayEntry(merged);
 }
+
+/** Copie le suivi d'hier sans les règles ni le journal. */
+export function copyYesterdayPatch(yesterday: DayEntry): Partial<DayEntry> {
+  const patch: Partial<DayEntry> = {};
+  if (yesterday.physical?.length) patch.physical = [...yesterday.physical];
+  if (yesterday.mood?.length) patch.mood = [...yesterday.mood];
+  if (yesterday.sleep?.length) patch.sleep = [...yesterday.sleep];
+  if (yesterday.cravings?.length) patch.cravings = [...yesterday.cravings];
+  if (yesterday.sexual?.length) patch.sexual = [...yesterday.sexual];
+  if (yesterday.skin?.length) patch.skin = [...yesterday.skin];
+  if (yesterday.discharge?.length) patch.discharge = [...yesterday.discharge];
+  return patch;
+}

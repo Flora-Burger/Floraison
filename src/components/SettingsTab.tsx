@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -9,9 +10,19 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { FilePdf, Lock, SignOut } from 'phosphor-react-native';
+import { Bell, FilePdf, Lock, SignOut } from 'phosphor-react-native';
 import type { CycleData } from '../types/cycle';
 import { exportMedicalReportPdf } from '../lib/exportMedicalPdf';
+import {
+  applyNotificationPrefs,
+  requestNotificationPermission,
+} from '../lib/notifications';
+import {
+  DEFAULT_NOTIFICATION_PREFS,
+  loadNotificationPrefs,
+  saveNotificationPrefs,
+  type NotificationPrefs,
+} from '../lib/notificationPrefs';
 import { PinSetupModal } from './PinSetupModal';
 import {
   BG_SOFT,
@@ -44,6 +55,52 @@ export function SettingsTab({
 }: SettingsTabProps) {
   const [exporting, setExporting] = useState(false);
   const [pinModalOpen, setPinModalOpen] = useState(false);
+  const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIFICATION_PREFS);
+  const [notifLoading, setNotifLoading] = useState(true);
+
+  useEffect(() => {
+    void loadNotificationPrefs().then((p) => {
+      setNotifPrefs(p);
+      setNotifLoading(false);
+    });
+  }, []);
+
+  const updateNotifPrefs = useCallback(
+    async (next: NotificationPrefs) => {
+      setNotifPrefs(next);
+      await saveNotificationPrefs(next);
+      await applyNotificationPrefs(next, data);
+    },
+    [data],
+  );
+
+  const handleDailyToggle = async (enabled: boolean) => {
+    if (enabled && Platform.OS !== 'web') {
+      const ok = await requestNotificationPermission();
+      if (!ok) {
+        Alert.alert(
+          'Notifications désactivées',
+          'Autorisez les notifications dans les réglages de votre téléphone pour recevoir des rappels.',
+        );
+        return;
+      }
+    }
+    await updateNotifPrefs({ ...notifPrefs, dailyEnabled: enabled });
+  };
+
+  const handlePeriodToggle = async (enabled: boolean) => {
+    if (enabled && Platform.OS !== 'web') {
+      const ok = await requestNotificationPermission();
+      if (!ok) {
+        Alert.alert(
+          'Notifications désactivées',
+          'Autorisez les notifications dans les réglages de votre téléphone.',
+        );
+        return;
+      }
+    }
+    await updateNotifPrefs({ ...notifPrefs, periodEnabled: enabled });
+  };
 
   const handleExport = async () => {
     setExporting(true);
@@ -89,6 +146,54 @@ export function SettingsTab({
           <View style={styles.accountCard}>
             <Text style={styles.accountLabel}>Compte connecté</Text>
             <Text style={styles.accountEmail}>{userEmail}</Text>
+          </View>
+        ) : null}
+
+        {Platform.OS !== 'web' ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Rappels</Text>
+            <View style={styles.settingCard}>
+              <View style={[styles.iconWrap, { backgroundColor: ROSE + '22' }]}>
+                <Bell size={ICON_SIZES.header} weight="duotone" color={ROSE_DEEP} />
+              </View>
+              <View style={styles.settingText}>
+                <Text style={styles.settingTitle}>Rappel quotidien</Text>
+                <Text style={styles.settingDesc}>
+                  Chaque jour à {notifPrefs.dailyHour}h — « Comment tu te sens aujourd'hui ? »
+                </Text>
+              </View>
+              {notifLoading ? (
+                <ActivityIndicator color={ROSE} />
+              ) : (
+                <Switch
+                  value={notifPrefs.dailyEnabled}
+                  onValueChange={(v) => void handleDailyToggle(v)}
+                  trackColor={{ false: BORDER, true: ROSE }}
+                  thumbColor="#FFFCF9"
+                />
+              )}
+            </View>
+            <View style={styles.settingCard}>
+              <View style={[styles.iconWrap, { backgroundColor: SAGE_LIGHT + '55' }]}>
+                <Bell size={ICON_SIZES.header} weight="fill" color={ROSE_DEEP} />
+              </View>
+              <View style={styles.settingText}>
+                <Text style={styles.settingTitle}>Avant tes règles</Text>
+                <Text style={styles.settingDesc}>
+                  {notifPrefs.periodDaysBefore} jours avant la date prévue
+                </Text>
+              </View>
+              {notifLoading ? (
+                <ActivityIndicator color={ROSE} />
+              ) : (
+                <Switch
+                  value={notifPrefs.periodEnabled}
+                  onValueChange={(v) => void handlePeriodToggle(v)}
+                  trackColor={{ false: BORDER, true: ROSE }}
+                  thumbColor="#FFFCF9"
+                />
+              )}
+            </View>
           </View>
         ) : null}
 
@@ -146,6 +251,11 @@ export function SettingsTab({
             <Text style={styles.actionDesc}>Fermer la session sur cet appareil.</Text>
           </View>
         </TouchableOpacity>
+
+        <Text style={styles.disclaimer}>
+          Floraison ne remplace pas un avis médical. Consulte un professionnel de santé en cas de
+          douleur intense, saignement inhabituel ou cycle très irrégulier.
+        </Text>
       </ScrollView>
 
       <PinSetupModal
@@ -167,6 +277,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 12,
+  },
+  section: { marginBottom: 4 },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: TEXT,
+    paddingHorizontal: 16,
+    marginBottom: 8,
   },
   accountCard: {
     marginHorizontal: 16,
@@ -217,4 +335,12 @@ const styles = StyleSheet.create({
   actionText: { flex: 1 },
   actionTitle: { fontSize: 16, fontWeight: '700', color: TEXT, marginBottom: 4 },
   actionDesc: { fontSize: 13, color: MUTED, lineHeight: 19 },
+  disclaimer: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    fontSize: 12,
+    color: MUTED,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
 });
