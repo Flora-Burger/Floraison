@@ -27,15 +27,67 @@ export function getPeriodBlockLengths(data: CycleData): number[] {
 }
 
 export function computeAvgCycleLength(data: CycleData): number {
+  const gaps = computeCycleGaps(data);
+  if (gaps.length === 0) return DEFAULT_CYCLE_LENGTH;
+  return Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length);
+}
+
+export function computeCycleGaps(data: CycleData): number[] {
   const starts = getPeriodStarts(data);
-  if (starts.length < 2) return DEFAULT_CYCLE_LENGTH;
   const gaps: number[] = [];
   for (let i = 1; i < starts.length; i++) {
     const gap = daysBetween(starts[i - 1], starts[i]);
     if (gap >= 20 && gap <= 45) gaps.push(gap);
   }
-  if (gaps.length === 0) return DEFAULT_CYCLE_LENGTH;
-  return Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length);
+  return gaps;
+}
+
+export type CycleRegularityStatus =
+  | 'insufficient'
+  | 'regular'
+  | 'slightly_variable'
+  | 'irregular';
+
+export type CycleRegularity = {
+  status: CycleRegularityStatus;
+  label: string;
+  minGap?: number;
+  maxGap?: number;
+  spread?: number;
+};
+
+export function getCycleRegularity(data: CycleData): CycleRegularity {
+  const gaps = computeCycleGaps(data);
+  if (gaps.length < 2) {
+    return {
+      status: 'insufficient',
+      label: 'Pas assez de cycles pour évaluer la régularité',
+    };
+  }
+
+  const min = Math.min(...gaps);
+  const max = Math.max(...gaps);
+  const spread = max - min;
+
+  if (spread <= 4) {
+    return { status: 'regular', label: 'Cycles réguliers', minGap: min, maxGap: max, spread };
+  }
+  if (spread <= 7) {
+    return {
+      status: 'slightly_variable',
+      label: `Cycles légèrement variables (${min}–${max} j)`,
+      minGap: min,
+      maxGap: max,
+      spread,
+    };
+  }
+  return {
+    status: 'irregular',
+    label: `Cycles irréguliers (${min}–${max} j)`,
+    minGap: min,
+    maxGap: max,
+    spread,
+  };
 }
 
 export function computeAvgPeriodDays(data: CycleData): number {

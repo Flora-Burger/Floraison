@@ -83,6 +83,11 @@ export async function schedulePeriodReminder(
   });
 }
 
+export async function cancelAllReminders(): Promise<void> {
+  await cancelScheduled(DAILY_ID);
+  await cancelScheduled(PERIOD_ID);
+}
+
 export async function syncAllReminders(data: CycleData): Promise<void> {
   if (Platform.OS === 'web') return;
   const prefs = await loadNotificationPrefs();

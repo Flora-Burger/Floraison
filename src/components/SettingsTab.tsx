@@ -10,9 +10,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Bell, FilePdf, Lock, SignOut } from 'phosphor-react-native';
+import { Bell, FilePdf, Lock, Shield, SignOut, Trash } from 'phosphor-react-native';
 import type { CycleData } from '../types/cycle';
 import { exportMedicalReportPdf } from '../lib/exportMedicalPdf';
+import { PrivacyPolicyScreen } from './PrivacyPolicyScreen';
 import {
   applyNotificationPrefs,
   requestNotificationPermission,
@@ -43,6 +44,7 @@ type SettingsTabProps = {
   onPinEnable: (pin: string) => Promise<void>;
   onPinDisable: () => Promise<void>;
   onLogout: () => void;
+  onDeleteAccount: () => Promise<void>;
 };
 
 export function SettingsTab({
@@ -52,8 +54,11 @@ export function SettingsTab({
   onPinEnable,
   onPinDisable,
   onLogout,
+  onDeleteAccount,
 }: SettingsTabProps) {
   const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
   const [pinModalOpen, setPinModalOpen] = useState(false);
   const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIFICATION_PREFS);
   const [notifLoading, setNotifLoading] = useState(true);
@@ -135,6 +140,43 @@ export function SettingsTab({
       { text: 'Annuler', style: 'cancel' },
       { text: 'Déconnexion', style: 'destructive', onPress: onLogout },
     ]);
+  };
+
+  const runDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      await onDeleteAccount();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Supprimer mon compte',
+      'Cette action efface définitivement votre compte, toutes vos données de cycle et vos notes de journal. Elle est irréversible.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Continuer',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Confirmation finale',
+              'Confirmez-vous la suppression définitive de votre compte et de toutes vos données ?',
+              [
+                { text: 'Annuler', style: 'cancel' },
+                {
+                  text: 'Supprimer tout',
+                  style: 'destructive',
+                  onPress: () => void runDeleteAccount(),
+                },
+              ],
+            );
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -239,6 +281,43 @@ export function SettingsTab({
         </TouchableOpacity>
 
         <TouchableOpacity
+          style={styles.actionCard}
+          onPress={() => setPrivacyOpen(true)}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.iconWrap, { backgroundColor: SAGE_LIGHT + '55' }]}>
+            <Shield size={ICON_SIZES.header} weight="fill" color={ROSE_DEEP} />
+          </View>
+          <View style={styles.actionText}>
+            <Text style={styles.actionTitle}>Politique de confidentialité</Text>
+            <Text style={styles.actionDesc}>
+              Données collectées, hébergement, vos droits RGPD et contact.
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.actionCard, styles.deleteCard]}
+          onPress={handleDeleteAccount}
+          disabled={deleting || !userEmail}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.iconWrap, { backgroundColor: ROSE + '18' }]}>
+            {deleting ? (
+              <ActivityIndicator color={ROSE_DEEP} />
+            ) : (
+              <Trash size={ICON_SIZES.header} weight="fill" color={ROSE_DEEP} />
+            )}
+          </View>
+          <View style={styles.actionText}>
+            <Text style={styles.deleteTitle}>Supprimer mon compte et mes données</Text>
+            <Text style={styles.actionDesc}>
+              Efface définitivement votre compte et l&apos;historique de suivi sur nos serveurs.
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[styles.actionCard, styles.logoutCard]}
           onPress={handleLogout}
           activeOpacity={0.8}
@@ -263,6 +342,7 @@ export function SettingsTab({
         onClose={() => setPinModalOpen(false)}
         onComplete={(pin) => void onPinEnable(pin)}
       />
+      <PrivacyPolicyScreen visible={privacyOpen} onClose={() => setPrivacyOpen(false)} />
     </>
   );
 }
@@ -325,6 +405,11 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   logoutCard: { marginTop: 4 },
+  deleteCard: {
+    borderColor: ROSE + '44',
+    backgroundColor: ROSE + '08',
+  },
+  deleteTitle: { fontSize: 16, fontWeight: '700', color: ROSE_DEEP, marginBottom: 4 },
   iconWrap: {
     width: 48,
     height: 48,

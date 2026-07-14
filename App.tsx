@@ -24,12 +24,13 @@ import { Calendar, DateData, LocaleConfig } from 'react-native-calendars';
 import { BookOpen, Drop } from 'phosphor-react-native';
 import { CorpsTab } from './src/components/CorpsTab';
 import { InsightsTab } from './src/components/InsightsTab';
-import { OnboardingScreen } from './src/components/OnboardingScreen';
 import { CalendarTrackingLegend } from './src/components/CalendarTrackingLegend';
 import { PinPad } from './src/components/PinPad';
 import { SettingsTab } from './src/components/SettingsTab';
+import { PrivacyPolicyScreen } from './src/components/PrivacyPolicyScreen';
 import { PasswordResetScreen } from './src/components/PasswordResetScreen';
 import { getPasswordResetRedirectUri } from './src/lib/authRedirect';
+import { deleteUserAccount } from './src/lib/accountDeletion';
 import { handleAuthDeepLink } from './src/lib/authDeepLink';
 import { NAV_TABS, TabIcon, type TabId } from './src/components/TabIcon';
 import {
@@ -78,7 +79,6 @@ import {
   migrateCycleData,
   toggleMulti,
 } from './src/lib/dayEntry';
-import { hasCompletedOnboarding, setOnboardingCompleted } from './src/lib/onboardingStorage';
 import { syncAllReminders } from './src/lib/notifications';
 import { isEmptyDayEntry } from './src/lib/cycleInsights';
 import { getStoredPin, removeStoredPin, setStoredPin as persistPin } from './src/lib/pinStorage';
@@ -129,7 +129,7 @@ const supabase =
       })
     : null;
 
-type AppPhase = 'loading' | 'pin' | 'auth' | 'reset-password' | 'onboarding' | 'main';
+type AppPhase = 'loading' | 'pin' | 'auth' | 'reset-password' | 'main';
 
 type AuthMode = 'login' | 'signup';
 
@@ -427,6 +427,7 @@ function AuthScreen({ onSuccess }: { onSuccess: (session: Session) => void }) {
   const [resetLoading, setResetLoading] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const [privacyOpen, setPrivacyOpen] = useState(false);
 
   const handleForgotPassword = async () => {
     if (!supabase) {
@@ -563,7 +564,11 @@ function AuthScreen({ onSuccess }: { onSuccess: (session: Session) => void }) {
               : 'Déjà un compte ? Se connecter'}
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity onPress={() => setPrivacyOpen(true)} style={styles.authPrivacyLink}>
+          <Text style={styles.authPrivacyText}>Politique de confidentialité</Text>
+        </TouchableOpacity>
       </KeyboardAvoidingView>
+      <PrivacyPolicyScreen visible={privacyOpen} onClose={() => setPrivacyOpen(false)} />
     </SafeAreaView>
   );
 }
@@ -941,7 +946,7 @@ function SuiviTab({
       <CalendarTrackingLegend />
       <Text style={styles.cycleHint}>
         {hasHistory
-          ? `Prédictions : cycle ~${cycleLength} j · règles ~${periodDays} j (moyennes calculées)`
+          ? `Prédictions : cycle ~${cycleLength} j · règles ~${periodDays} j`
           : `Prédictions : cycle ${DEFAULT_CYCLE_LENGTH} j · règles ${DEFAULT_PERIOD_DAYS} j (par défaut — saisissez 2 cycles pour personnaliser)`}
       </Text>
       <DayForm
@@ -967,8 +972,7 @@ export default function App() {
   const [loadingData, setLoadingData] = useState(false);
 
   const enterMainApp = useCallback(async () => {
-    const done = await hasCompletedOnboarding();
-    setPhase(done ? 'main' : 'onboarding');
+    setPhase('main');
   }, []);
 
   const afterPinUnlock = useCallback(async () => {
@@ -998,12 +1002,6 @@ export default function App() {
       setPhase('auth');
     }
   }, [enterMainApp]);
-
-  const handleOnboardingComplete = useCallback(async () => {
-    await setOnboardingCompleted();
-    await syncAllReminders(cycleData);
-    setPhase('main');
-  }, [cycleData]);
 
   const handleLearnMore = useCallback((articleId: string) => {
     setHighlightTopicId(articleId);
@@ -1126,6 +1124,23 @@ export default function App() {
     setPhase('auth');
   };
 
+  const handleDeleteAccount = useCallback(async () => {
+    if (!supabase || !session) return;
+    const result = await deleteUserAccount(supabase, session.user.id);
+    setSession(null);
+    setCycleData({});
+    setStoredPin(null);
+    setPhase('auth');
+    if (result.ok) {
+      Alert.alert(
+        'Compte supprimé',
+        'Votre compte et toutes vos données ont été effacés définitivement.',
+      );
+    } else {
+      Alert.alert('Suppression', result.message);
+    }
+  }, [session]);
+
   const handlePinEnable = useCallback(async (pin: string) => {
     await persistPin(pin);
     setStoredPin(pin);
@@ -1190,10 +1205,6 @@ export default function App() {
     );
   }
 
-  if (phase === 'onboarding') {
-    return <OnboardingScreen onComplete={() => void handleOnboardingComplete()} />;
-  }
-
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
@@ -1226,6 +1237,7 @@ export default function App() {
             onPinEnable={handlePinEnable}
             onPinDisable={handlePinDisable}
             onLogout={handleLogout}
+            onDeleteAccount={handleDeleteAccount}
           />
         )}
       </View>
@@ -1619,6 +1631,8 @@ const styles = StyleSheet.create({
   },
   primaryBtnText: { color: '#FFFCF9', fontSize: 16, fontWeight: '700' },
   linkText: { color: ROSE_DEEP, fontSize: 14, textAlign: 'center', fontWeight: '600' },
+  authPrivacyLink: { marginTop: 20, alignSelf: 'center' },
+  authPrivacyText: { color: MUTED, fontSize: 13, textDecorationLine: 'underline' },
   authInfo: {
     color: SAGE,
     fontSize: 14,

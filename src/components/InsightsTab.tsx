@@ -10,6 +10,15 @@ import {
 } from '../lib/cycleInsights';
 import { getArticleIdForInsight } from '../lib/insightArticles';
 import { getCycleContextForDate } from '../lib/cyclePhase';
+import {
+  computeAvgCycleLength,
+  computeAvgPeriodDays,
+  DEFAULT_CYCLE_LENGTH,
+  DEFAULT_PERIOD_DAYS,
+  getCycleRegularity,
+  getPeriodStarts,
+} from '../lib/cycleMath';
+import { formatNextPeriodLabel } from '../lib/cyclePredictions';
 import { formatPhaseHero, getPhaseById } from '../constants/cycleContent';
 import { parseDateKey, todayKey } from '../lib/dates';
 import {
@@ -324,6 +333,13 @@ export function InsightsTab({ data, onLearnMore }: InsightsTabProps) {
     ? result.symptomInsights.filter((i) => i.id !== heroId)
     : result.symptomInsights;
 
+  const cycleLength = useMemo(() => computeAvgCycleLength(data), [data]);
+  const periodDays = useMemo(() => computeAvgPeriodDays(data), [data]);
+  const periodStartCount = useMemo(() => getPeriodStarts(data).length, [data]);
+  const hasPredictionHistory = periodStartCount >= 2;
+  const nextPeriodLabel = useMemo(() => formatNextPeriodLabel(data, todayKey()), [data]);
+  const regularity = useMemo(() => getCycleRegularity(data), [data]);
+
   return (
     <ScrollView style={styles.tabScroll} contentContainerStyle={styles.tabContent}>
       <View style={styles.header}>
@@ -374,6 +390,36 @@ export function InsightsTab({ data, onLearnMore }: InsightsTabProps) {
           </Text>
         </View>
       )}
+
+      <View style={styles.predictionsCard}>
+        <Text style={styles.predictionsTitle}>Tes prédictions</Text>
+        {nextPeriodLabel ? (
+          <Text style={styles.predictionsNext}>{nextPeriodLabel}</Text>
+        ) : null}
+        <Text style={styles.predictionsBody}>
+          {hasPredictionHistory
+            ? `Cycle ~${cycleLength} j · règles ~${periodDays} j (moyennes calculées sur ${periodStartCount} début${periodStartCount > 1 ? 's' : ''} de règles enregistré${periodStartCount > 1 ? 's' : ''})`
+            : `Cycle ${DEFAULT_CYCLE_LENGTH} j · règles ${DEFAULT_PERIOD_DAYS} j (valeurs par défaut — enregistrez 2 cycles pour personnaliser)`}
+        </Text>
+        {regularity.status === 'irregular' ? (
+          <View style={styles.regularityWarning}>
+            <Text style={styles.regularityWarningTitle}>{regularity.label}</Text>
+            <Text style={styles.regularityWarningBody}>
+              Tes cycles varient de {regularity.minGap} à {regularity.maxGap} jours. Les prédictions
+              et certains insights sont moins fiables — parle-en à un professionnel de santé si c'est
+              nouveau pour toi.
+            </Text>
+          </View>
+        ) : regularity.status === 'slightly_variable' ? (
+          <View style={styles.regularityNote}>
+            <Text style={styles.regularityNoteText}>
+              {regularity.label} — les prédictions restent indicatives.
+            </Text>
+          </View>
+        ) : regularity.status === 'regular' ? (
+          <Text style={styles.regularityOk}>Cycles réguliers — prédictions plus fiables.</Text>
+        ) : null}
+      </View>
 
       {!hasInsights ? (
         <View style={styles.emptyCard}>
@@ -501,6 +547,49 @@ const styles = StyleSheet.create({
   },
   confidenceTitle: { fontSize: 14, fontWeight: '700', color: SAGE, marginBottom: 4 },
   confidenceBody: { fontSize: 13, color: MUTED, lineHeight: 19 },
+  predictionsCard: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: CARD,
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  predictionsTitle: { fontSize: 14, fontWeight: '700', color: TEXT, marginBottom: 6 },
+  predictionsNext: { fontSize: 15, fontWeight: '600', color: ROSE_DEEP, marginBottom: 6, lineHeight: 21 },
+  predictionsBody: { fontSize: 13, color: MUTED, lineHeight: 19 },
+  regularityWarning: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: ROSE + '14',
+    borderWidth: 1,
+    borderColor: ROSE + '44',
+  },
+  regularityWarningTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: ROSE_DEEP,
+    marginBottom: 4,
+  },
+  regularityWarningBody: { fontSize: 12, color: TEXT, lineHeight: 18 },
+  regularityNote: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: BG_SOFT,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  regularityNoteText: { fontSize: 12, color: MUTED, lineHeight: 18 },
+  regularityOk: {
+    marginTop: 8,
+    fontSize: 12,
+    color: SAGE,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
   cycleProgressWrap: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   cycleProgressTrack: {
     flex: 1,
