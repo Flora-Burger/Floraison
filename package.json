@@ -31,7 +31,7 @@
     "android": "expo start --android --lan",
     "ios": "expo start --ios --lan",
     "web": "expo start --web",
-    "build:web": "expo export -p web && node scripts/patch-pwa.mjs",
+    "build:web": "node scripts/generate-icons.mjs && expo export -p web && node scripts/patch-pwa.mjs",
     "build": "npm run build:web"
   },
   "engines": {
