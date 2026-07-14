@@ -386,7 +386,7 @@ export function InsightsTab({ data, onLearnMore }: InsightsTabProps) {
           <Text style={styles.emptyBody}>
             {result.cycleCount === 0
               ? 'Commence par noter tes règles, puis ajoute symptômes, humeur et sommeil au quotidien.'
-              : 'Les corrélations apparaissent quand une tendance dépasse 50 % des jours notés sur une phase.'}
+              : 'Les tendances apparaissent quand un symptôme revient souvent dans une phase où il a du sens (≥ 65 % des jours notés, sur au moins 2 cycles).'}
           </Text>
         </View>
       ) : (
@@ -412,7 +412,7 @@ export function InsightsTab({ data, onLearnMore }: InsightsTabProps) {
             <View style={styles.insightsSection}>
               <Text style={styles.sectionLabel}>Symptômes marquants</Text>
               <Text style={styles.sectionHint}>
-                Ce qui revient le plus dans ton cycle
+                Ce qui revient surtout pendant une phase précise de ton cycle
               </Text>
               {symptomList.map((insight) => (
                 <InsightCard key={insight.id} insight={insight} onLearnMore={onLearnMore} />

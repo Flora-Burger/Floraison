@@ -6,6 +6,10 @@ import type {
   SymptomKey,
 } from '../types/cycle';
 import { getSymptomLabel } from '../constants/symptoms';
+import {
+  CONTRAST_PHASES_FOR_PREMENSTRUAL,
+  isSymptomRelevantForPhase,
+} from '../constants/phaseSymptomRelevance';
 import { getPhaseById } from '../constants/cycleContent';
 import { TRACK_COLORS } from '../constants/theme';
 import { addDays, todayKey } from './dates';
@@ -16,8 +20,13 @@ import {
 import { getCycleContextForDate, getDaysUntilNextPeriod } from './cyclePhase';
 
 export const MIN_CYCLES = 2;
-export const MIN_DISPLAY_RATE = 0.5;
-export const MIN_LOGGED_DAYS_IN_PHASE = 2;
+/** Taux minimum dans la phase cible (ex. 65 % des jours notés). */
+export const MIN_DISPLAY_RATE = 0.65;
+/** Écart minimum vs les autres phases (évite les coïncidences isolées). */
+export const MIN_PHASE_RATE_MARGIN = 0.2;
+export const MIN_LOGGED_DAYS_IN_PHASE = 3;
+/** Nombre max de symptômes marquants affichés (hors carte hero). */
+export const MAX_SYMPTOM_INSIGHTS = 4;
 export const PRE_MENSTRUAL_DAYS = 7;
 
 export type TrackCategoryId =
@@ -211,6 +220,65 @@ function makeInsightId(
   return `${kind}:${key}:${phase}`;
 }
 
+function maxOtherPhaseRate(
+  phaseRates: Record<CyclePhaseId, number>,
+  targetPhase: CyclePhaseId,
+): number {
+  let max = 0;
+  for (const phaseId of PHASE_IDS) {
+    if (phaseId === targetPhase) continue;
+    max = Math.max(max, phaseRates[phaseId]);
+  }
+  return max;
+}
+
+function avgPhaseRates(
+  phaseRates: Record<CyclePhaseId, number>,
+  phases: CyclePhaseId[],
+): number {
+  if (phases.length === 0) return 0;
+  const sum = phases.reduce((acc, phaseId) => acc + phaseRates[phaseId], 0);
+  return sum / phases.length;
+}
+
+function passesPhaseContrast(
+  phase: InsightPhaseId,
+  rate: number,
+  phaseRates: Record<CyclePhaseId, number>,
+): boolean {
+  if (phase === 'avant_regles') {
+    const baseline = avgPhaseRates(phaseRates, CONTRAST_PHASES_FOR_PREMENSTRUAL);
+    return rate >= baseline + MIN_PHASE_RATE_MARGIN;
+  }
+  const bestOther = maxOtherPhaseRate(phaseRates, phase);
+  return rate >= bestOther + MIN_PHASE_RATE_MARGIN;
+}
+
+function minCyclesRequiredForInsight(ready: boolean): number {
+  return ready ? 2 : 1;
+}
+
+function minRateForInsight(ready: boolean, cyclesWithEvidence: number): number {
+  if (!ready && cyclesWithEvidence < 2) return 0.75;
+  return MIN_DISPLAY_RATE;
+}
+
+function shouldIncludeSymptomInsight(params: {
+  symptomKey: SymptomKey;
+  phase: InsightPhaseId;
+  rate: number;
+  phaseRates: Record<CyclePhaseId, number>;
+  cyclesWithEvidence: number;
+  ready: boolean;
+}): boolean {
+  const { symptomKey, phase, rate, phaseRates, cyclesWithEvidence, ready } = params;
+
+  if (!isSymptomRelevantForPhase(symptomKey, phase)) return false;
+  if (cyclesWithEvidence < minCyclesRequiredForInsight(ready)) return false;
+  if (rate < minRateForInsight(ready, cyclesWithEvidence)) return false;
+  return passesPhaseContrast(phase, rate, phaseRates);
+}
+
 /** Fusionne lutéale vs avant-règles : garde la fenêtre la plus précise ou le taux le plus élevé. */
 export function dedupeLutealVsPremenstrual(insights: SymptomInsight[]): SymptomInsight[] {
   const groups = new Map<string, SymptomInsight[]>();
@@ -351,6 +419,9 @@ export function computeSymptomCorrelations(data: CycleData): CorrelationResult {
 
   const loggedInPhase = emptyPhaseRecord(0);
   const num: Partial<Record<SymptomKey, Record<CyclePhaseId, number>>> = {};
+  const cycleEvidence: Partial<
+    Record<SymptomKey, Partial<Record<InsightPhaseId, Set<number>>>>
+  > = {};
 
   const preMenstrualNum: Partial<Record<SymptomKey, number>> = {};
   let preMenstrualLoggedCount = 0;
@@ -374,6 +445,9 @@ export function computeSymptomCorrelations(data: CycleData): CorrelationResult {
           for (const s of symptoms) {
             if (!num[s]) num[s] = emptyPhaseRecord(0);
             num[s]![ctx.phase]++;
+            if (!cycleEvidence[s]) cycleEvidence[s] = {};
+            if (!cycleEvidence[s]![ctx.phase]) cycleEvidence[s]![ctx.phase] = new Set();
+            cycleEvidence[s]![ctx.phase]!.add(i);
           }
         }
 
@@ -388,6 +462,9 @@ export function computeSymptomCorrelations(data: CycleData): CorrelationResult {
           const symptoms = extractSymptomKeys(entry);
           for (const s of symptoms) {
             preMenstrualNum[s] = (preMenstrualNum[s] ?? 0) + 1;
+            if (!cycleEvidence[s]) cycleEvidence[s] = {};
+            if (!cycleEvidence[s]!.avant_regles) cycleEvidence[s]!.avant_regles = new Set();
+            cycleEvidence[s]!.avant_regles!.add(i);
           }
         }
       }
@@ -408,48 +485,71 @@ export function computeSymptomCorrelations(data: CycleData): CorrelationResult {
 
     for (const phaseId of PHASE_IDS) {
       const rate = phaseRates[phaseId];
-      if (rate >= MIN_DISPLAY_RATE) {
-        const label = getSymptomLabel(symptomKey);
-        symptomInsights.push({
-          id: makeInsightId('symptom', phaseId, symptomKey),
-          kind: 'symptom',
+      const cyclesWithEvidence = cycleEvidence[symptomKey]?.[phaseId]?.size ?? 0;
+      if (
+        !shouldIncludeSymptomInsight({
           symptomKey,
-          label,
           phase: phaseId,
-          phaseLabel: getInsightPhaseLabel(phaseId),
           rate,
-          sentence: formatInsightSentence(label, phaseId, rate),
-          confidence,
-          evidenceDays: phaseCounts[phaseId],
-        });
+          phaseRates,
+          cyclesWithEvidence,
+          ready,
+        })
+      ) {
+        continue;
       }
+      const label = getSymptomLabel(symptomKey);
+      symptomInsights.push({
+        id: makeInsightId('symptom', phaseId, symptomKey),
+        kind: 'symptom',
+        symptomKey,
+        label,
+        phase: phaseId,
+        phaseLabel: getInsightPhaseLabel(phaseId),
+        rate,
+        sentence: formatInsightSentence(label, phaseId, rate),
+        confidence,
+        evidenceDays: phaseCounts[phaseId],
+      });
     }
   }
 
   if (preMenstrualLoggedCount >= MIN_LOGGED_DAYS_IN_PHASE) {
     for (const [symptomKey, count] of Object.entries(preMenstrualNum) as [SymptomKey, number][]) {
       const rate = count / preMenstrualLoggedCount;
-      if (rate >= MIN_DISPLAY_RATE) {
-        const label = getSymptomLabel(symptomKey);
-        symptomInsights.push({
-          id: makeInsightId('symptom', 'avant_regles', symptomKey),
-          kind: 'symptom',
+      const phaseRates = rates[symptomKey] ?? emptyPhaseRecord(0);
+      const cyclesWithEvidence = cycleEvidence[symptomKey]?.avant_regles?.size ?? 0;
+      if (
+        !shouldIncludeSymptomInsight({
           symptomKey,
-          label,
           phase: 'avant_regles',
-          phaseLabel: getInsightPhaseLabel('avant_regles'),
           rate,
-          sentence: formatInsightSentence(label, 'avant_regles', rate),
-          confidence,
-          evidenceDays: count,
-        });
+          phaseRates,
+          cyclesWithEvidence,
+          ready,
+        })
+      ) {
+        continue;
       }
+      const label = getSymptomLabel(symptomKey);
+      symptomInsights.push({
+        id: makeInsightId('symptom', 'avant_regles', symptomKey),
+        kind: 'symptom',
+        symptomKey,
+        label,
+        phase: 'avant_regles',
+        phaseLabel: getInsightPhaseLabel('avant_regles'),
+        rate,
+        sentence: formatInsightSentence(label, 'avant_regles', rate),
+        confidence,
+        evidenceDays: count,
+      });
     }
   }
 
-  const dedupedSymptoms = dedupeLutealVsPremenstrual(symptomInsights).sort(
-    (a, b) => b.rate - a.rate,
-  );
+  const dedupedSymptoms = dedupeLutealVsPremenstrual(symptomInsights)
+    .sort((a, b) => b.rate - a.rate)
+    .slice(0, MAX_SYMPTOM_INSIGHTS + 1);
 
   const heroInsight = pickHeroInsight(dedupedSymptoms);
   const allInsights = dedupedSymptoms;
