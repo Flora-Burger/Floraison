@@ -354,6 +354,7 @@ async function saveCycleData(userId: string, cycleData: CycleData): Promise<void
   if (error) throw error;
 }
 
+/** Crée la ligne si absente — ne jamais écraser des données existantes. */
 async function ensureCycleDataRow(userId: string): Promise<void> {
   if (!supabase) return;
   const { error } = await supabase.from('cycle_data').upsert(
@@ -362,7 +363,7 @@ async function ensureCycleDataRow(userId: string): Promise<void> {
       data: {},
       updated_at: new Date().toISOString(),
     },
-    { onConflict: 'user_id' },
+    { onConflict: 'user_id', ignoreDuplicates: true },
   );
   if (error) throw error;
 }
@@ -378,9 +379,6 @@ function formatAuthError(e: unknown): string {
   }
   if (msg.includes('Invalid login credentials')) {
     return 'Email ou mot de passe incorrect.';
-  }
-  if (msg.includes('rate limit') || msg.includes('12 seconds') || msg.includes('56 seconds')) {
-    return 'Trop de tentatives. Attendez une minute avant de réessayer.';
   }
   if (msg.includes('User already registered')) {
     return 'Un compte existe déjà avec cet email. Connectez-vous ou confirmez votre email.';
@@ -1062,7 +1060,6 @@ export default function App() {
       setSession(s);
       setLoadingData(true);
       try {
-        await ensureCycleDataRow(s.user.id);
         const loaded = await loadCycleData(s.user.id);
         setCycleData(loaded);
         await enterMainApp();
