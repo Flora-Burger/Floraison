@@ -29,7 +29,7 @@ import { PinPad } from './src/components/PinPad';
 import { SettingsTab } from './src/components/SettingsTab';
 import { PrivacyPolicyScreen } from './src/components/PrivacyPolicyScreen';
 import { PasswordResetScreen } from './src/components/PasswordResetScreen';
-import { getPasswordResetRedirectUri } from './src/lib/authRedirect';
+import { getEmailConfirmRedirectUri, getPasswordResetRedirectUri } from './src/lib/authRedirect';
 import { deleteUserAccount } from './src/lib/accountDeletion';
 import { handleAuthDeepLink } from './src/lib/authDeepLink';
 import { NAV_TABS, TabIcon, type TabId } from './src/components/TabIcon';
@@ -425,6 +425,7 @@ function AuthScreen({ onSuccess }: { onSuccess: (session: Session) => void }) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [privacyOpen, setPrivacyOpen] = useState(false);
@@ -460,6 +461,38 @@ function AuthScreen({ onSuccess }: { onSuccess: (session: Session) => void }) {
     }
   };
 
+  const handleResendConfirmation = async () => {
+    if (!supabase) {
+      setError('Supabase non configuré. Ajoutez vos clés dans .env');
+      return;
+    }
+    if (!email.trim()) {
+      setError('Entrez votre adresse email pour renvoyer le lien de confirmation.');
+      return;
+    }
+    setResendLoading(true);
+    setError('');
+    setInfo('');
+    try {
+      const { error: resendError } = await supabase.auth.resend({
+        type: 'signup',
+        email: email.trim(),
+        options: { emailRedirectTo: getEmailConfirmRedirectUri() },
+      });
+      if (resendError) {
+        setError(formatAuthError(resendError));
+        return;
+      }
+      setInfo(
+        'Email de confirmation renvoyé. Ouvrez le lien sur ce téléphone ou cet ordinateur, puis reconnectez-vous.',
+      );
+    } catch (e: unknown) {
+      setError(formatAuthError(e));
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!supabase) {
       setError('Supabase non configuré. Ajoutez vos clés dans .env');
@@ -486,6 +519,9 @@ function AuthScreen({ onSuccess }: { onSuccess: (session: Session) => void }) {
         const { data, error: authError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
+          options: {
+            emailRedirectTo: getEmailConfirmRedirectUri(),
+          },
         });
         if (authError) {
           setError(formatAuthError(authError));
@@ -545,11 +581,18 @@ function AuthScreen({ onSuccess }: { onSuccess: (session: Session) => void }) {
           )}
         </TouchableOpacity>
         {mode === 'login' ? (
-          <TouchableOpacity onPress={handleForgotPassword} disabled={resetLoading}>
-            <Text style={styles.linkText}>
-              {resetLoading ? 'Envoi en cours…' : 'Mot de passe oublié ?'}
-            </Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity onPress={handleForgotPassword} disabled={resetLoading}>
+              <Text style={styles.linkText}>
+                {resetLoading ? 'Envoi en cours…' : 'Mot de passe oublié ?'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleResendConfirmation} disabled={resendLoading}>
+              <Text style={styles.linkText}>
+                {resendLoading ? 'Envoi en cours…' : 'Renvoyer l\'email de confirmation'}
+              </Text>
+            </TouchableOpacity>
+          </>
         ) : null}
         <TouchableOpacity
           onPress={() => {
@@ -1014,26 +1057,61 @@ export default function App() {
     }
   }, [cycleData, phase]);
 
-  const processAuthUrl = useCallback(async (url: string | null): Promise<boolean> => {
-    if (!url || !supabase) return false;
-    try {
-      const result = await handleAuthDeepLink(supabase, url);
-      if (result === 'recovery') {
-        setPhase('reset-password');
-        return true;
+  const completeAuthSession = useCallback(
+    async (s: Session) => {
+      setSession(s);
+      setLoadingData(true);
+      try {
+        await ensureCycleDataRow(s.user.id);
+        const loaded = await loadCycleData(s.user.id);
+        setCycleData(loaded);
+        await enterMainApp();
+      } catch {
+        setSyncError('Impossible de charger vos données.');
+        await enterMainApp();
+      } finally {
+        setLoadingData(false);
       }
-    } catch (e: unknown) {
-      Alert.alert(
-        'Lien invalide',
-        e instanceof Error ? e.message : 'Impossible de traiter le lien de réinitialisation.',
-      );
-    }
-    return false;
-  }, []);
+    },
+    [enterMainApp],
+  );
+
+  const processAuthUrl = useCallback(
+    async (url: string | null): Promise<boolean> => {
+      if (!url || !supabase) return false;
+      try {
+        const result = await handleAuthDeepLink(supabase, url);
+        if (result === 'recovery') {
+          setPhase('reset-password');
+          return true;
+        }
+        if (result === 'signup' || result === 'other') {
+          const { data } = await supabase.auth.getSession();
+          if (data.session) {
+            await completeAuthSession(data.session);
+            if (Platform.OS === 'web' && typeof window !== 'undefined') {
+              window.history.replaceState({}, '', window.location.pathname);
+            }
+            return true;
+          }
+        }
+      } catch (e: unknown) {
+        Alert.alert(
+          'Lien invalide',
+          e instanceof Error ? e.message : 'Impossible de traiter le lien reçu par email.',
+        );
+      }
+      return false;
+    },
+    [completeAuthSession],
+  );
 
   useEffect(() => {
     (async () => {
-      const initialUrl = await Linking.getInitialURL();
+      let initialUrl = await Linking.getInitialURL();
+      if (!initialUrl && Platform.OS === 'web' && typeof window !== 'undefined') {
+        initialUrl = window.location.href;
+      }
       if (await processAuthUrl(initialUrl)) return;
 
       const pin = await getStoredPin();
@@ -1068,18 +1146,7 @@ export default function App() {
   const pinTitle = 'Entrez votre code PIN';
 
   const handleAuthSuccess = async (s: Session) => {
-    setSession(s);
-    setLoadingData(true);
-    try {
-      const loaded = await loadCycleData(s.user.id);
-      setCycleData(loaded);
-      await enterMainApp();
-    } catch {
-      setSyncError('Impossible de charger vos données.');
-      await enterMainApp();
-    } finally {
-      setLoadingData(false);
-    }
+    await completeAuthSession(s);
   };
 
   const persistData = useCallback(
@@ -1117,12 +1184,13 @@ export default function App() {
     [persistData],
   );
 
-  const handleLogout = async () => {
-    if (supabase) await supabase.auth.signOut();
+  const handleLogout = useCallback(async () => {
+    if (supabase) await supabase.auth.signOut({ scope: 'local' });
     setSession(null);
     setCycleData({});
+    setSyncError('');
     setPhase('auth');
-  };
+  }, []);
 
   const handleDeleteAccount = useCallback(async () => {
     if (!supabase || !session) return;

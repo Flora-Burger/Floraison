@@ -1,7 +1,7 @@
 import * as Linking from 'expo-linking';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export type AuthDeepLinkResult = 'recovery' | 'other' | null;
+export type AuthDeepLinkResult = 'recovery' | 'signup' | 'other' | null;
 
 function collectParams(url: string): Record<string, string> {
   const params: Record<string, string> = {};
@@ -35,6 +35,12 @@ function collectParams(url: string): Record<string, string> {
   return params;
 }
 
+function mapLinkType(type: string | undefined): AuthDeepLinkResult {
+  if (type === 'recovery') return 'recovery';
+  if (type === 'signup' || type === 'email' || type === 'email_change') return 'signup';
+  return 'other';
+}
+
 export async function handleAuthDeepLink(
   client: SupabaseClient,
   url: string,
@@ -44,9 +50,16 @@ export async function handleAuthDeepLink(
   }
 
   const params = collectParams(url);
+  const type = params.type;
+
+  if (params.code) {
+    const { error } = await client.auth.exchangeCodeForSession(params.code);
+    if (error) throw error;
+    return mapLinkType(type);
+  }
+
   const accessToken = params.access_token;
   const refreshToken = params.refresh_token;
-  const type = params.type;
 
   if (!accessToken || !refreshToken) {
     return null;
@@ -61,5 +74,5 @@ export async function handleAuthDeepLink(
     throw error;
   }
 
-  return type === 'recovery' ? 'recovery' : 'other';
+  return mapLinkType(type);
 }

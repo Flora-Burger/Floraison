@@ -13,6 +13,7 @@ import {
 import { Bell, FilePdf, Lock, Shield, SignOut, Trash } from 'phosphor-react-native';
 import type { CycleData } from '../types/cycle';
 import { exportMedicalReportPdf } from '../lib/exportMedicalPdf';
+import { confirmAsync } from '../lib/confirmDialog';
 import { PrivacyPolicyScreen } from './PrivacyPolicyScreen';
 import {
   applyNotificationPrefs,
@@ -43,7 +44,7 @@ type SettingsTabProps = {
   pinEnabled: boolean;
   onPinEnable: (pin: string) => Promise<void>;
   onPinDisable: () => Promise<void>;
-  onLogout: () => void;
+  onLogout: () => void | Promise<void>;
   onDeleteAccount: () => Promise<void>;
 };
 
@@ -121,25 +122,27 @@ export function SettingsTab({
       setPinModalOpen(true);
       return;
     }
-    Alert.alert(
-      'Désactiver le code PIN',
-      "Vous n'aurez plus à saisir de code au démarrage de l'application.",
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Désactiver',
-          style: 'destructive',
-          onPress: () => void onPinDisable(),
-        },
-      ],
-    );
+    void (async () => {
+      const ok = await confirmAsync(
+        'Désactiver le code PIN',
+        "Vous n'aurez plus à saisir de code au démarrage de l'application.",
+        'Désactiver',
+        true,
+      );
+      if (ok) await onPinDisable();
+    })();
   };
 
   const handleLogout = () => {
-    Alert.alert('Déconnexion', 'Voulez-vous vous déconnecter ?', [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Déconnexion', style: 'destructive', onPress: onLogout },
-    ]);
+    void (async () => {
+      const ok = await confirmAsync(
+        'Déconnexion',
+        'Voulez-vous vous déconnecter ?',
+        'Déconnexion',
+        true,
+      );
+      if (ok) await onLogout();
+    })();
   };
 
   const runDeleteAccount = async () => {
@@ -152,31 +155,23 @@ export function SettingsTab({
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
-      'Supprimer mon compte',
-      'Cette action efface définitivement votre compte, toutes vos données de cycle et vos notes de journal. Elle est irréversible.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Continuer',
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              'Confirmation finale',
-              'Confirmez-vous la suppression définitive de votre compte et de toutes vos données ?',
-              [
-                { text: 'Annuler', style: 'cancel' },
-                {
-                  text: 'Supprimer tout',
-                  style: 'destructive',
-                  onPress: () => void runDeleteAccount(),
-                },
-              ],
-            );
-          },
-        },
-      ],
-    );
+    void (async () => {
+      const step1 = await confirmAsync(
+        'Supprimer mon compte',
+        'Cette action efface définitivement votre compte, toutes vos données de cycle et vos notes de journal. Elle est irréversible.',
+        'Continuer',
+        true,
+      );
+      if (!step1) return;
+
+      const step2 = await confirmAsync(
+        'Confirmation finale',
+        'Confirmez-vous la suppression définitive de votre compte et de toutes vos données ?',
+        'Supprimer tout',
+        true,
+      );
+      if (step2) await runDeleteAccount();
+    })();
   };
 
   return (
