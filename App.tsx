@@ -30,7 +30,14 @@ import { PrivacyPolicyScreen } from './src/components/PrivacyPolicyScreen';
 import { PasswordResetScreen } from './src/components/PasswordResetScreen';
 import { PlantCompanionCard } from './src/components/PlantCompanionCard';
 import { PhaseAccentProvider, usePhaseAccent } from './src/context/PhaseAccentContext';
+import type { PlantReaction } from './src/constants/plantReactions';
 import { clearPlantCompanionState } from './src/lib/plantCompanionStorage';
+import {
+  clearPlantReactionFlags,
+  detectPlantReaction,
+  notePlantAppOpen,
+} from './src/lib/plantReactionDetect';
+import { clearPlantGallery } from './src/lib/plantRarity';
 import { getEmailConfirmRedirectUri, getPasswordResetRedirectUri } from './src/lib/authRedirect';
 import { deleteUserAccount } from './src/lib/accountDeletion';
 import { alertAsync } from './src/lib/confirmDialog';
@@ -957,12 +964,16 @@ function SuiviTab({
   onSelectDate,
   onUpdateDay,
   userId,
+  plantReaction,
+  onPlantReactionDone,
 }: {
   data: CycleData;
   selectedDate: string;
   onSelectDate: (d: string) => void;
   onUpdateDay: (date: string, patch: Partial<DayEntry>) => void;
   userId?: string;
+  plantReaction?: PlantReaction | null;
+  onPlantReactionDone?: () => void;
 }) {
   const markedDates = useMemo(() => buildMarkedDates(data, selectedDate), [data, selectedDate]);
   const cycleLength = useMemo(() => computeAvgCycleLength(data), [data]);
@@ -995,7 +1006,12 @@ function SuiviTab({
 
   return (
     <ScrollView style={styles.tabScroll} contentContainerStyle={styles.tabContent}>
-      <PlantCompanionCard data={data} userId={userId} />
+      <PlantCompanionCard
+        data={data}
+        userId={userId}
+        reactionTrigger={plantReaction}
+        onReactionDone={onPlantReactionDone}
+      />
       <View style={styles.calendarCard}>
         <Calendar
           current={selectedDate}
@@ -1081,14 +1097,42 @@ function AppRoot() {
   const [loadingData, setLoadingData] = useState(false);
   /** true seulement après un load serveur réussi — empêche d'écraser la base avec {}. */
   const [dataHydrated, setDataHydrated] = useState(false);
+  const [plantReaction, setPlantReaction] = useState<PlantReaction | null>(null);
   const persistQueue = useRef(createSerialQueue());
   const syncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingServerSync = useRef<CycleData | null>(null);
   const sessionUserIdRef = useRef<string | null>(null);
+  const reactionQueueRef = useRef<PlantReaction[]>([]);
+  const reactionPlayingRef = useRef(false);
 
   useEffect(() => {
     sessionUserIdRef.current = session?.user?.id ?? null;
   }, [session]);
+
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId || !dataHydrated) return;
+    void notePlantAppOpen(userId);
+  }, [session?.user?.id, dataHydrated]);
+
+  const enqueuePlantReaction = useCallback((reaction: PlantReaction) => {
+    if (reactionPlayingRef.current) {
+      reactionQueueRef.current = [reaction];
+      return;
+    }
+    reactionPlayingRef.current = true;
+    setPlantReaction(reaction);
+  }, []);
+
+  const handlePlantReactionDone = useCallback(() => {
+    const next = reactionQueueRef.current.shift() ?? null;
+    if (next) {
+      setPlantReaction(next);
+      return;
+    }
+    reactionPlayingRef.current = false;
+    setPlantReaction(null);
+  }, []);
 
   const enterMainApp = useCallback(async () => {
     setPhase('main');
@@ -1332,6 +1376,7 @@ function AppRoot() {
       }
       setCycleData((prev) => {
         const current = prev[date] ?? {};
+        const wasEmpty = isEmptyDayEntry(current);
         const merged = applyDayPatch(current, patch);
         const next = { ...prev };
         if (isEmptyDayEntry(merged)) {
@@ -1340,10 +1385,26 @@ function AppRoot() {
           next[date] = merged;
         }
         persistData(next);
+
+        const userId = sessionUserIdRef.current;
+        if (userId && !isEmptyDayEntry(merged)) {
+          void detectPlantReaction({
+            userId,
+            date,
+            prevData: prev,
+            nextData: next,
+            patch,
+            merged,
+            wasEmpty,
+          }).then((reaction) => {
+            if (reaction) enqueuePlantReaction(reaction);
+          });
+        }
+
         return next;
       });
     },
-    [persistData, dataHydrated],
+    [persistData, dataHydrated, enqueuePlantReaction],
   );
 
   const handleLogout = useCallback(async () => {
@@ -1353,6 +1414,8 @@ function AppRoot() {
     if (userId) {
       await clearCachedCycleData(userId);
       await clearPlantCompanionState(userId);
+      await clearPlantGallery(userId);
+      await clearPlantReactionFlags(userId);
     }
     setSession(null);
     setCycleData({});
@@ -1372,6 +1435,8 @@ function AppRoot() {
     }
     await clearCachedCycleData(userId);
     await clearPlantCompanionState(userId);
+    await clearPlantGallery(userId);
+    await clearPlantReactionFlags(userId);
     setSession(null);
     setCycleData({});
     setDataHydrated(false);
@@ -1470,6 +1535,8 @@ function AppRoot() {
             onSelectDate={setSelectedDate}
             onUpdateDay={updateDay}
             userId={session?.user?.id}
+            plantReaction={plantReaction}
+            onPlantReactionDone={handlePlantReactionDone}
           />
         ) : activeTab === 'insights' ? (
           <InsightsTab data={cycleData} onLearnMore={handleLearnMore} />

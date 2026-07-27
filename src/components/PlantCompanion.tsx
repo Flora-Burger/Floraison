@@ -1,14 +1,19 @@
-import { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useRef } from 'react';
+import { Animated, Easing, StyleSheet } from 'react-native';
 import Svg, { Circle, Ellipse, G, Path } from 'react-native-svg';
 import type { CyclePhaseId } from '../types/cycle';
 import { PHASE_ACCENTS } from '../constants/phaseAccent';
+import type { PlantReaction } from '../constants/plantReactions';
+import type { FlowerVariante } from '../lib/plantRarity';
 import { BG_SOFT, BORDER } from '../constants/theme';
 
 export type PlantCompanionProps = {
   phase: CyclePhaseId;
   progression: number;
   size?: number;
+  variante?: FlowerVariante;
+  reaction?: PlantReaction | null;
+  onReactionDone?: () => void;
 };
 
 type VisualParams = {
@@ -32,6 +37,7 @@ function clamp01(n: number): number {
 export function computePlantVisuals(
   phase: CyclePhaseId,
   progression: number,
+  variante: FlowerVariante = 'commune',
 ): VisualParams {
   const p = clamp01(progression);
   const accents = PHASE_ACCENTS[phase];
@@ -50,27 +56,31 @@ export function computePlantVisuals(
     centerColor: accents.highlight,
   };
 
+  let visuals: VisualParams;
+
   switch (phase) {
     case 'menstruelle':
-      return {
+      visuals = {
         ...base,
-        stemHeight: 0.12 + p * 0.06,
+        stemHeight: 0.14 + p * 0.08,
         stemColor: accents.accent,
         leafColor: accents.highlight,
       };
+      break;
     case 'folliculaire':
-      return {
+      visuals = {
         ...base,
-        stemHeight: 0.2 + p * 0.75,
-        leafOpacity: p >= 0.3 ? clamp01((p - 0.3) / 0.7) : 0,
-        flowerScale: p >= 0.85 ? (p - 0.85) / 0.15 * 0.25 : 0,
-        flowerOpacity: p >= 0.85 ? (p - 0.85) / 0.15 * 0.4 : 0,
+        stemHeight: 0.22 + p * 0.72,
+        leafOpacity: p >= 0.28 ? clamp01((p - 0.28) / 0.72) : 0,
+        flowerScale: p >= 0.85 ? ((p - 0.85) / 0.15) * 0.25 : 0,
+        flowerOpacity: p >= 0.85 ? ((p - 0.85) / 0.15) * 0.4 : 0,
         stemColor: accents.accent,
         leafColor: accents.highlight,
         petalColor: PHASE_ACCENTS.ovulatoire.accent,
       };
+      break;
     case 'ovulatoire':
-      return {
+      visuals = {
         ...base,
         stemHeight: 0.95,
         leafOpacity: 1,
@@ -81,10 +91,11 @@ export function computePlantVisuals(
         petalColor: accents.accent,
         centerColor: accents.highlight,
       };
+      break;
     case 'luteale': {
       const fruitGrow = clamp01(p / 0.45);
       const petalFall = clamp01((p - 0.45) / 0.55);
-      return {
+      visuals = {
         ...base,
         stemHeight: 0.92,
         leafOpacity: 1 - petalFall * 0.35,
@@ -98,10 +109,28 @@ export function computePlantVisuals(
         fruitColor: accents.accent,
         centerColor: accents.highlight,
       };
+      break;
     }
     default:
-      return base;
+      visuals = base;
   }
+
+  if (variante === 'rare') {
+    return {
+      ...visuals,
+      petalColor: PHASE_ACCENTS.ovulatoire.highlight,
+      centerColor: PHASE_ACCENTS.ovulatoire.accent,
+    };
+  }
+  if (variante === 'tres_rare') {
+    return {
+      ...visuals,
+      petalColor: '#9B6B9E',
+      centerColor: '#E8C547',
+      fruitColor: '#9B6B9E',
+    };
+  }
+  return visuals;
 }
 
 function Petal({
@@ -112,6 +141,7 @@ function Petal({
   opacity,
   droop,
   color,
+  elongated,
 }: {
   cx: number;
   cy: number;
@@ -120,22 +150,91 @@ function Petal({
   opacity: number;
   droop: number;
   color: string;
+  elongated?: boolean;
 }) {
   const rad = ((angleDeg - 90) * Math.PI) / 180;
-  const len = 22 * scale;
+  const len = (elongated ? 26 : 22) * scale;
+  const width = (elongated ? 5.5 : 7) * scale;
   const droopY = droop * 10;
   const x2 = cx + Math.cos(rad) * len;
   const y2 = cy + Math.sin(rad) * len + droopY;
-  const mx = cx + Math.cos(rad) * len * 0.55 + Math.cos(rad + Math.PI / 2) * 7 * scale;
-  const my = cy + Math.sin(rad) * len * 0.55 + Math.sin(rad + Math.PI / 2) * 7 * scale + droopY * 0.5;
-  const nx = cx + Math.cos(rad) * len * 0.55 - Math.cos(rad + Math.PI / 2) * 7 * scale;
-  const ny = cy + Math.sin(rad) * len * 0.55 - Math.sin(rad + Math.PI / 2) * 7 * scale + droopY * 0.5;
+  const mx = cx + Math.cos(rad) * len * 0.55 + Math.cos(rad + Math.PI / 2) * width;
+  const my =
+    cy + Math.sin(rad) * len * 0.55 + Math.sin(rad + Math.PI / 2) * width + droopY * 0.5;
+  const nx = cx + Math.cos(rad) * len * 0.55 - Math.cos(rad + Math.PI / 2) * width;
+  const ny =
+    cy + Math.sin(rad) * len * 0.55 - Math.sin(rad + Math.PI / 2) * width + droopY * 0.5;
   const d = `M ${cx} ${cy} Q ${mx} ${my} ${x2} ${y2} Q ${nx} ${ny} ${cx} ${cy}`;
   return <Path d={d} fill={color} opacity={opacity} />;
 }
 
-export function PlantCompanion({ phase, progression, size = 160 }: PlantCompanionProps) {
-  const v = useMemo(() => computePlantVisuals(phase, progression), [phase, progression]);
+const PETAL_ANGLES_COMMUNE = [0, 72, 144, 216, 288];
+const PETAL_ANGLES_RARE = [0, 60, 120, 180, 240, 300];
+const PETAL_ANGLES_TRES_RARE = [0, 45, 90, 135, 180, 225, 270, 315];
+
+export function PlantCompanion({
+  phase,
+  progression,
+  size = 160,
+  variante = 'commune',
+  reaction = null,
+  onReactionDone,
+}: PlantCompanionProps) {
+  const v = useMemo(
+    () => computePlantVisuals(phase, progression, variante),
+    [phase, progression, variante],
+  );
+
+  const bounceY = useRef(new Animated.Value(0)).current;
+  const bounceScale = useRef(new Animated.Value(1)).current;
+  const lastReactionId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!reaction) {
+      lastReactionId.current = null;
+      return;
+    }
+    if (reaction.id === lastReactionId.current) return;
+    lastReactionId.current = reaction.id;
+    const { dy, scale, durationMs } = reaction.motion;
+    const easing = reaction.soft
+      ? Easing.inOut(Easing.sin)
+      : Easing.out(Easing.back(1.4));
+    bounceY.setValue(0);
+    bounceScale.setValue(1);
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(bounceY, {
+          toValue: dy,
+          duration: durationMs * 0.45,
+          easing,
+          useNativeDriver: true,
+        }),
+        Animated.timing(bounceScale, {
+          toValue: scale,
+          duration: durationMs * 0.45,
+          easing,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.timing(bounceY, {
+          toValue: 0,
+          duration: durationMs * 0.55,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(bounceScale, {
+          toValue: 1,
+          duration: durationMs * 0.55,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start(({ finished }) => {
+      if (finished) onReactionDone?.();
+    });
+  }, [reaction, bounceY, bounceScale, onReactionDone]);
 
   const vb = 120;
   const soilY = 98;
@@ -145,82 +244,113 @@ export function PlantCompanion({ phase, progression, size = 160 }: PlantCompanio
   const flowerCy = stemTopY;
   const flowerCx = stemBaseX;
 
+  const petalAngles =
+    variante === 'tres_rare'
+      ? PETAL_ANGLES_TRES_RARE
+      : variante === 'rare'
+        ? PETAL_ANGLES_RARE
+        : PETAL_ANGLES_COMMUNE;
+
   return (
-    <View style={[styles.wrap, { width: size, height: size }]} accessibilityLabel={`Plante ${phase}`}>
+    <Animated.View
+      style={[
+        styles.wrap,
+        { width: size, height: size },
+        { transform: [{ translateY: bounceY }, { scale: bounceScale }] },
+      ]}
+      accessibilityLabel={`Plante ${phase}${variante !== 'commune' ? `, variante ${variante}` : ''}`}
+    >
       <Svg width={size} height={size} viewBox={`0 0 ${vb} ${vb}`}>
-        {/* Pot */}
+        {/* Pot — proportions un peu plus larges / stables */}
         <Path
-          d="M38 96 L42 114 Q60 118 78 114 L82 96 Z"
+          d="M36 95 L41 113 Q60 118 79 113 L84 95 Z"
           fill="#C4B5A8"
           stroke="#A89888"
           strokeWidth={1}
         />
-        <Ellipse cx={60} cy={96} rx={24} ry={5} fill="#D4C4B4" />
-        <Ellipse cx={60} cy={96} rx={20} ry={3.5} fill="#8B7355" opacity={0.55} />
+        <Ellipse cx={60} cy={95} rx={26} ry={5.5} fill="#D4C4B4" />
+        <Ellipse cx={60} cy={95} rx={21} ry={3.8} fill="#8B7355" opacity={0.55} />
 
         {/* Stem */}
         <Path
-          d={`M ${stemBaseX} ${stemBaseY} Q ${stemBaseX - 2} ${(stemBaseY + stemTopY) / 2} ${stemBaseX} ${stemTopY}`}
+          d={`M ${stemBaseX} ${stemBaseY} Q ${stemBaseX - 2.5} ${(stemBaseY + stemTopY) / 2} ${stemBaseX} ${stemTopY}`}
           stroke={v.stemColor}
-          strokeWidth={3.2}
+          strokeWidth={3.4}
           fill="none"
           strokeLinecap="round"
         />
 
-        {/* Leaves (after 30% follicular+) */}
         {v.leafOpacity > 0.01 ? (
           <G opacity={v.leafOpacity}>
-            <G
-              transform={`rotate(-35 ${stemBaseX - 14} ${stemBaseY - v.stemHeight * 28})`}
-            >
+            <G transform={`rotate(-38 ${stemBaseX - 15} ${stemBaseY - v.stemHeight * 28})`}>
               <Ellipse
-                cx={stemBaseX - 14}
+                cx={stemBaseX - 15}
                 cy={stemBaseY - v.stemHeight * 28}
-                rx={11}
-                ry={5}
+                rx={12}
+                ry={5.2}
                 fill={v.leafColor}
               />
             </G>
-            <G
-              transform={`rotate(32 ${stemBaseX + 14} ${stemBaseY - v.stemHeight * 36})`}
-            >
+            <G transform={`rotate(34 ${stemBaseX + 15} ${stemBaseY - v.stemHeight * 38})`}>
               <Ellipse
-                cx={stemBaseX + 14}
-                cy={stemBaseY - v.stemHeight * 36}
-                rx={10}
-                ry={4.5}
+                cx={stemBaseX + 15}
+                cy={stemBaseY - v.stemHeight * 38}
+                rx={11}
+                ry={4.8}
                 fill={v.leafColor}
               />
             </G>
+            {variante !== 'commune' ? (
+              <G transform={`rotate(-18 ${stemBaseX - 8} ${stemBaseY - v.stemHeight * 48})`}>
+                <Ellipse
+                  cx={stemBaseX - 8}
+                  cy={stemBaseY - v.stemHeight * 48}
+                  rx={7}
+                  ry={3.2}
+                  fill={v.leafColor}
+                  opacity={0.85}
+                />
+              </G>
+            ) : null}
           </G>
         ) : null}
 
-        {/* Flower petals */}
         {v.flowerOpacity > 0.02 && v.flowerScale > 0.05 ? (
           <G>
-            {[0, 72, 144, 216, 288].map((angle) => (
+            {petalAngles.map((angle) => (
               <Petal
                 key={angle}
                 cx={flowerCx}
                 cy={flowerCy}
                 angleDeg={angle}
-                scale={v.flowerScale}
+                scale={v.flowerScale * (variante === 'tres_rare' ? 0.92 : 1)}
                 opacity={v.flowerOpacity * 0.92}
                 droop={v.petalDroop}
                 color={v.petalColor}
+                elongated={variante === 'rare'}
               />
             ))}
             <Circle
               cx={flowerCx}
               cy={flowerCy + v.petalDroop * 4}
-              r={4.5 * v.flowerScale}
+              r={(variante === 'tres_rare' ? 5.2 : 4.5) * v.flowerScale}
               fill={v.centerColor}
               opacity={v.flowerOpacity}
             />
+            {variante === 'tres_rare' ? (
+              <G opacity={v.flowerOpacity * 0.85}>
+                {[
+                  [flowerCx - 14, flowerCy - 10],
+                  [flowerCx + 16, flowerCy - 6],
+                  [flowerCx + 4, flowerCy - 16],
+                ].map(([x, y], i) => (
+                  <Circle key={i} cx={x} cy={y} r={1.4} fill={v.centerColor} />
+                ))}
+              </G>
+            ) : null}
           </G>
         ) : null}
 
-        {/* Fruits (luteal) */}
         {v.fruitScale > 0.05 ? (
           <G>
             <Circle
@@ -247,19 +377,18 @@ export function PlantCompanion({ phase, progression, size = 160 }: PlantCompanio
           </G>
         ) : null}
 
-        {/* Quiet bud when stem exists but no flower yet */}
         {v.stemHeight > 0.25 && v.flowerScale < 0.08 ? (
           <Ellipse
             cx={flowerCx}
             cy={flowerCy}
-            rx={3}
-            ry={4}
+            rx={3.2}
+            ry={4.2}
             fill={v.stemColor}
             opacity={0.75}
           />
         ) : null}
       </Svg>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -276,8 +405,21 @@ const styles = StyleSheet.create({
 });
 
 export const PLANT_PHASE_LABELS: Record<CyclePhaseId, string> = {
-  menstruelle: 'Repos — repos',
+  menstruelle: 'Graine — repos',
   folliculaire: 'Pousse — énergie',
   ovulatoire: 'Floraison',
   luteale: 'Fruits — transition',
 };
+
+/** Stades pour le mode preview (couche 2). */
+export const PLANT_STAGE_PREVIEWS: {
+  phase: CyclePhaseId;
+  progression: number;
+  label: string;
+}[] = [
+  { phase: 'menstruelle', progression: 0.5, label: 'Menstruelle' },
+  { phase: 'folliculaire', progression: 0.7, label: 'Folliculaire' },
+  { phase: 'ovulatoire', progression: 0.5, label: 'Ovulatoire' },
+  { phase: 'luteale', progression: 0.25, label: 'Lutéale début' },
+  { phase: 'luteale', progression: 0.85, label: 'Lutéale fin' },
+];

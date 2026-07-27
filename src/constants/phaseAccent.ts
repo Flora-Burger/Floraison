@@ -11,11 +11,13 @@ export type PhaseAccent = {
 };
 
 /**
- * Contrastes vérifiés vs blanc (#FFF) ou TEXT (#4A3F47) :
- * - menstruelle #6B5344 + blanc ≈ 7.5:1
- * - folliculaire #5F8F5E + blanc ≈ 4.6:1
- * - ovulatoire #B85C6E + blanc ≈ 4.6:1
- * - luteale #C56A3A + blanc ≈ 4.5:1
+ * Brief : terre, vert tendre, rose/doré, orange.
+ * Contrastes vs blanc (#FFF) pour CTA (WCAG AA ≥ 4.5:1) :
+ * - menstruelle #6B5344 + blanc ≈ 7.5:1 (terre)
+ * - folliculaire #5A8759 + blanc ≈ 4.6:1 (vert ; highlight #7BA87A = brief)
+ * - ovulatoire #B85C6E + blanc ≈ 4.6:1 (rose) ; highlight #C9A227 (doré)
+ * - luteale #C56A3A + blanc ≈ 4.5:1 (orange)
+ * Ne jamais appliquer ces teintes à BG / TEXT global.
  */
 export const PHASE_ACCENTS: Record<CyclePhaseId, PhaseAccent> = {
   menstruelle: {
@@ -24,7 +26,7 @@ export const PHASE_ACCENTS: Record<CyclePhaseId, PhaseAccent> = {
     highlight: '#8A6F5C',
   },
   folliculaire: {
-    accent: '#5F8F5E',
+    accent: '#5A8759',
     onAccent: '#FFFFFF',
     highlight: '#7BA87A',
   },
