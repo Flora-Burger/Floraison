@@ -1,9 +1,10 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import type { CycleData } from '../types/cycle';
 import { buildMedicalReportHtml } from './medicalReportPdf';
 import { getPeriodStarts } from './cycleMath';
+import { alertAsync } from './confirmDialog';
 
 /** A4 @ 96 DPI — rendu PDF plus lisible sur mobile. */
 const PDF_WIDTH = 794;
@@ -47,7 +48,7 @@ function exportPdfOnWeb(html: string): void {
     iframe.onload = () => window.setTimeout(printFromIframe, 250);
   }
 
-  Alert.alert(
+  void alertAsync(
     'Exporter le rapport',
     'Choisissez « Enregistrer au format PDF » ou une imprimante PDF dans la fenêtre qui s\'ouvre.',
   );
@@ -58,7 +59,7 @@ export async function exportMedicalReportPdf(
   userEmail?: string,
 ): Promise<void> {
   if (getPeriodStarts(data).length === 0 && Object.keys(data).length === 0) {
-    Alert.alert(
+    await alertAsync(
       'Rien à exporter',
       'Enregistrez au moins quelques jours de suivi avant de générer un rapport.',
     );
@@ -82,7 +83,7 @@ export async function exportMedicalReportPdf(
 
     const canShare = await Sharing.isAvailableAsync();
     if (!canShare) {
-      Alert.alert('Export réussi', `PDF enregistré : ${uri}`);
+      await alertAsync('Export réussi', `PDF enregistré : ${uri}`);
       return;
     }
 
@@ -93,6 +94,6 @@ export async function exportMedicalReportPdf(
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Erreur inconnue';
-    Alert.alert('Export impossible', msg);
+    await alertAsync('Export impossible', msg);
   }
 }

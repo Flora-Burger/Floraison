@@ -10,16 +10,18 @@ export function TabIcon({
   icon: Icon,
   active,
   size = ICON_SIZES.tab,
+  activeColor = ICON_COLORS.active,
 }: {
   icon: PhosphorIcon;
   active: boolean;
   size?: number;
+  activeColor?: string;
 }) {
   return (
     <Icon
       size={size}
       weight={active ? 'fill' : 'regular'}
-      color={active ? ICON_COLORS.active : ICON_COLORS.inactive}
+      color={active ? activeColor : ICON_COLORS.inactive}
     />
   );
 }

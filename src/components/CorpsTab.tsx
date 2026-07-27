@@ -22,6 +22,7 @@ import {
 import { getCycleContextForDate } from '../lib/cyclePhase';
 import { todayKey } from '../lib/dates';
 import { CycleWheel } from './CycleWheel';
+import { usePhaseAccent } from '../context/PhaseAccentContext';
 import {
   BG,
   BG_SOFT,
@@ -114,6 +115,7 @@ export function CorpsTab({ data, highlightTopicId }: CorpsTabProps) {
 
   const ctx = useMemo(() => getCycleContextForDate(data, todayKey()), [data]);
   const hero = ctx ? formatPhaseHero(getPhaseById(ctx.phase)) : null;
+  const { accent } = usePhaseAccent();
 
   const toggle = (id: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -124,7 +126,7 @@ export function CorpsTab({ data, highlightTopicId }: CorpsTabProps) {
     <ScrollView style={styles.tabScroll} contentContainerStyle={styles.tabContent}>
       <View style={styles.header}>
         <View style={styles.headerIconWrap}>
-          <BookOpen size={22} weight="fill" color={ROSE_DEEP} />
+          <BookOpen size={22} weight="fill" color={accent.accent} />
         </View>
         <View>
           <Text style={styles.intro}>Comprendre mon corps</Text>
@@ -133,12 +135,12 @@ export function CorpsTab({ data, highlightTopicId }: CorpsTabProps) {
       </View>
 
       {hero && ctx ? (
-        <View style={[styles.phaseCard, { borderColor: getPhaseById(ctx.phase).color + '88' }]}>
+        <View style={[styles.phaseCard, { borderColor: accent.accent + '99' }]}>
           <View
-            style={[styles.phaseCardGlow, { backgroundColor: getPhaseById(ctx.phase).color + '18' }]}
+            style={[styles.phaseCardGlow, { backgroundColor: accent.accent + '18' }]}
           />
           <Text style={styles.phaseEmoji}>{getPhaseById(ctx.phase).emoji}</Text>
-          <Text style={styles.phaseCardTitle}>Aujourd'hui</Text>
+          <Text style={[styles.phaseCardTitle, { color: accent.accent }]}>Aujourd'hui</Text>
           <Text style={styles.phaseCardHeadline}>{hero.headline}</Text>
           <Text style={styles.phaseCardSymptoms}>{hero.symptomsLine}</Text>
           <CycleWheel data={data} />

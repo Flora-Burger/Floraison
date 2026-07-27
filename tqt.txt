@@ -1,2 +1,153 @@
 
 database password floraison : XC3i6SZifRUb2Tov
+
+ok, je veux creer un nouvel outil UNIQUEMENT pour les utilisateurs commercial, qui consiste à suivre les routes commerciales : il sera accessible dans herramientas (on est d'accord que les utilisateurs commercial voient le panneau herramientas ?) Je veux que tu verifies bien les ortographes exactes des mots en espagnol, il se peut que j'oublie des accents etc de temps en tempts. Pour ce genre de projet, vaut-il mieux creer une branche sur mon github ? 
+
+On aura 6 onglets dans un menu en bas de l'ecran dans cet ordre (cet outil s'utilisera quasi uniquement sur mobile) : Inicio, Inicio ruta, Rutas, Clientes, Historial, Ajustes.
+
+
+Dans "Clientes", on pourra ajouter un client en remplissant ce formulaire : 
+"Asignar a ruta" (on verra ca plus tard)
+"Codigo de cliente" (obligatoire)
+"Nombre"
+"Empresa"
+"Teléfono"
+"Email"
+"Direccion"
+"Codigo postal" (qui remplit la ville)
+"Poblacion / Ciudad"
+"Sector" où on peut cliquer sur un des choix suivant : Material construccion, almacen construccion, constructor, reformista, ferreteria, fontaneria, exposicion fontaneria, decorador, riego, industria, distribucion, electricidad, climatizacion, hosteleria, otro"
+"Notas"
+"Categoria comercial (ranking)" où on peut choisir entre : "VIP, Pro, Normal, Base, Chatarreta" avec une importance et une couleur liées au grade : VIP=Muy alto= bleu diamand, Pro=Alto= doré, Normal=medio=argent, Base=bajo=bronze, Chatarreta=marron.
+Ensuite il y a un bouton "Guardar Cliente"
+
+On pourra ensuite les chercher grace a une barre de recherche et des filtres/tris :
+Disponiblidad = todos, disponibles, no disponibles
+Ordenar por = A-Z, Ruta, Sector, Poblacion, Importancia, Mas cercanos
+On affiche ensuite la liste des clients de cette facon :
+numero de client - nom du client              categorie
+"ultima visita": date
+a quelle route il est assigné
+
+On pourra ensuite cliquer sur un client de la liste des clients pour ouvrir sa fiche client : 
+
+un joli panel du theme de la catégorie commerciale avec :
+le nom de sa categorie
+le numero de client - son nom
+et a gauche un joli rond avec les Initiales du client (Si flora roche alors FR)
+
+En dessous un autre panel different mais avec le meme theme :
+la route - "cambiar ruta"
+puis deux boutons :
+"llamar" - "maps"
+qui permettent d'appeler et de voir l'adresse sur map en un clique.
+
+ensuite un autre panel du meme theme :
+Cosas pendientes avec barre textuelle et "Recordar el (DD/MM/AA)" avec la date à laquelle on veut un rappel (notification) et la possibilité de "anadir"
+en dessous la liste des cosas pendientes avec la posibilité de cocher la tache et de la supprimer (separer les "hechas")
+
+Ensuite encore en bas il y a le nombre de "llamadas", "visitas","pedidos", "presupuestos" et "incidencias" (ce dernier est en rouge". Quand on clique sur l'un deux, on peut ajouter un de ces evenements et voir la liste de ces derniers.
+
+En dessous, il y a l'historique complet
+Tout en dessous, il y a le bouton "nuevo registro" (il reste toujours en bas de l'ecran, meme quand on defile). 
+Quand on clique dessus, on a le choix entre differents "Tipo de contacto" : voici les differents et ce qui se passe quand on clique dessus :
+
+llamada>respondio/no respondio/no disponible/duvuelve llamada, SI "respondio", alors >"Resultado del contacto" = pedido/presupuesto/aplazado/sin interes/quiere visita/seguimiento, SI "pedido/presupuesto, alors > formulaire avec :
+observaciones
+importe potencial (€)
+importe cerrado (€)
+proxima accion
+Fecha seguimiento (DD/MM/AAAA)
+SINON formulaire avec :
+observaciones
+proxima accion
+fecha de seguimiento
+
+visita fisica > visita realizada/local cerado/responsable ausente/aplazado/pedido/presupuesto/incidencia 
+SI visita realizada/ pedido/ presupuesto, incidencia (à mettre en rouge) alors > formulaire avec :
+observaciones
+importe potencial (€)
+importe cerrado (€)
+proxima accion
+Fecha seguimiento (DD/MM/AAAA)
+SINON formulaire avec :
+observaciones
+proxima accion
+fecha de seguimiento
+
+WhatsApp, alors > formulaire avec :
+observaciones
+importe potencial (€)
+importe cerrado (€)
+proxima accion
+Fecha seguimiento (DD/MM/AAAA)
+
+Email, alors > formulaire avec :
+observaciones
+importe potencial (€)
+importe cerrado (€)
+proxima accion
+Fecha seguimiento (DD/MM/AAAA)
+
+Seguimiento, alors > formulaire avec :
+observaciones
+importe potencial (€)
+importe cerrado (€)
+proxima accion
+Fecha seguimiento (DD/MM/AAAA)
+
+Incidencia (en rouge), alors > formulaire avec :
+observaciones
+importe potencial (€)
+importe cerrado (€)
+proxima accion
+Fecha seguimiento (DD/MM/AAAA)
+
+Presupuesto, alors > formulaire avec :
+observaciones
+importe potencial (€)
+importe cerrado (€)
+proxima accion
+Fecha seguimiento (DD/MM/AAAA)
+
+Pedido, alors > formulaire avec :
+observaciones
+importe potencial (€)
+importe cerrado (€)
+proxima accion
+Fecha seguimiento (DD/MM/AAAA)
+
+Ces entrées seront disponibles dans les historiques assignés et dans l'historique globale, sous cette forme :
+Nom de l'evenement        date 
+resumé (genre "respondio -> presupuesto")
+potencial (si pas de importe cerrado noté) ou cerrado (si importe cerrado noté) avec le chiffre en €
+
+Chaque evenement a une petite icone assignée en rouge si il y a "incidencia", en verte sinon.
+
+On pourra bien sur modifier/supprimer toutes les données des evenements ainsi que celles de clients
+
+ENSUITE, pour l'onget "rutas" on va pouvoir creer des routes : 
+nombre de la ruta
+descripcion/zona
+Color (choix entre des points de couleur vert, bleu, violet, orange, rouge)
+Dia de la semana (choix entre les jours de la semaine de lundi a vendredi + sin dia fijo)
+et le bouton "crear ruta"
+
+En cliquant sur une route, on va pouvoir la modifier/supprimer mais aussi Gestionar clientes > asigner un cliente dans la listes des clients qu'on peut trier et chercher comme dans l'onglet des clients (un client peut etre associé à plusieurs routes)
+Et ordenar y agrupar clientes > où on va pouvoir grouper par "mi order/poblacion/sector/importancia/categoria"
+et modifier l'ordre des clients de la route (avec les trois barres horizontales la)
+
+Dans la liste des routes, on aura mis en evidence celle associée au jour actuel avec les details du nombre de clients, des evenements du jour et des suvis.
+
+Dans Historial, on aura l'historique des evenements par routes (ajouter le client au detail de l'event pour les differencier)
+
+
+ENSUITE dans l'onglet "inicio ruta" on aura la possibilité de voir l'itinéraire dans google maps de la route qu'on veut : l'adresse des clients sera marqué et on pourra modifier l'ordre aussi sur google maps, il seront d'office trés par "orden vistita/poblacion/sector/importancia/categoria"
+
+ENSUITE dans l'onglet "inicio", on aura un menu rapide pour les autres onglets, un barre de recherche pour chercher clients ou casas pendientes
+Ensuite "cosas pendientes" avec la liste des choses à faire
+ensuite "resumen del dia" avec les acciones, les seguimientos et les pendientes
+Ensuite l'activité du jour avec les evenements du jour listés
+ensuite les "proximos seguimientos"  qui sont en fait les "proxima accion" des events
+
+Ensuite dans Ajustes, la possibilté de mettre ou non des notifications sur les "alertas de seguimiento", qui se programment en enregistrant un event avec une date de suivi (à 9h du jour indiqué) et la possibilité de voir ses statistqiues par routes, par semaine, par mois, du nombre de presupuestos, pedidos et de ventas cerradas (on affiche ici la somme des importe cerrado de la periode données), et les clientes pendientes (on affiche ici les clients actifs sans aucune action realisée dans les 30 derniers jours 

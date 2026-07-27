@@ -1,8 +1,7 @@
 import 'react-native-url-polyfill/auto';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -29,8 +28,18 @@ import { PinPad } from './src/components/PinPad';
 import { SettingsTab } from './src/components/SettingsTab';
 import { PrivacyPolicyScreen } from './src/components/PrivacyPolicyScreen';
 import { PasswordResetScreen } from './src/components/PasswordResetScreen';
+import { PlantCompanionCard } from './src/components/PlantCompanionCard';
+import { PhaseAccentProvider, usePhaseAccent } from './src/context/PhaseAccentContext';
+import { clearPlantCompanionState } from './src/lib/plantCompanionStorage';
 import { getEmailConfirmRedirectUri, getPasswordResetRedirectUri } from './src/lib/authRedirect';
 import { deleteUserAccount } from './src/lib/accountDeletion';
+import { alertAsync } from './src/lib/confirmDialog';
+import { createSerialQueue } from './src/lib/serialQueue';
+import {
+  clearCachedCycleData,
+  loadCachedCycleData,
+  saveCachedCycleData,
+} from './src/lib/cycleDataCache';
 import { handleAuthDeepLink } from './src/lib/authDeepLink';
 import { NAV_TABS, TabIcon, type TabId } from './src/components/TabIcon';
 import {
@@ -368,6 +377,29 @@ async function ensureCycleDataRow(userId: string): Promise<void> {
   if (error) throw error;
 }
 
+const SYNC_DEBOUNCE_MS = 800;
+
+type HydrateResult = {
+  data: CycleData;
+  hydrated: boolean;
+  /** Serveur injoignable, données lues depuis le cache local. */
+  fromCache: boolean;
+};
+
+async function hydrateCycleData(userId: string): Promise<HydrateResult> {
+  try {
+    const loaded = await loadCycleData(userId);
+    await saveCachedCycleData(userId, loaded);
+    return { data: loaded, hydrated: true, fromCache: false };
+  } catch {
+    const cached = await loadCachedCycleData(userId);
+    if (cached) {
+      return { data: cached, hydrated: true, fromCache: true };
+    }
+    return { data: {}, hydrated: false, fromCache: false };
+  }
+}
+
 function formatAuthError(e: unknown): string {
   const msg =
     e && typeof e === 'object' && 'message' in e && typeof e.message === 'string'
@@ -427,6 +459,7 @@ function AuthScreen({ onSuccess }: { onSuccess: (session: Session) => void }) {
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [privacyOpen, setPrivacyOpen] = useState(false);
+  const { accent } = usePhaseAccent();
 
   const handleForgotPassword = async () => {
     if (!supabase) {
@@ -569,11 +602,15 @@ function AuthScreen({ onSuccess }: { onSuccess: (session: Session) => void }) {
         />
         {error ? <Text style={styles.pinError}>{error}</Text> : null}
         {info ? <Text style={styles.authInfo}>{info}</Text> : null}
-        <TouchableOpacity style={styles.primaryBtn} onPress={handleSubmit} disabled={loading}>
+        <TouchableOpacity
+          style={[styles.primaryBtn, { backgroundColor: accent.accent }]}
+          onPress={handleSubmit}
+          disabled={loading}
+        >
           {loading ? (
-            <ActivityIndicator color="#FFF" />
+            <ActivityIndicator color={accent.onAccent} />
           ) : (
-            <Text style={styles.primaryBtnText}>
+            <Text style={[styles.primaryBtnText, { color: accent.onAccent }]}>
               {mode === 'login' ? 'Se connecter' : "S'inscrire"}
             </Text>
           )}
@@ -626,18 +663,25 @@ function Chip({
   onPress: () => void;
   tint?: string;
 }) {
+  const { accent } = usePhaseAccent();
+  const selectedTint = tint ?? accent.accent;
   return (
     <TouchableOpacity
       style={[
         styles.chip,
-        selected &&
-          (tint
-            ? { backgroundColor: tint + '28', borderColor: tint, borderWidth: 1.5 }
-            : styles.chipSelected),
+        selected && {
+          backgroundColor: selectedTint + '28',
+          borderColor: selectedTint,
+          borderWidth: 1.5,
+        },
       ]}
       onPress={onPress}
     >
-      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text>
+      <Text
+        style={[styles.chipText, selected && { color: selectedTint, fontWeight: '700' }]}
+      >
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -690,9 +734,10 @@ function DayForm({
   const month = d.toLocaleDateString('fr-FR', { month: 'long' });
   const dayNum = d.getDate();
   const hasJournal = !!(entry.journal && entry.journal.trim());
+  const { accent } = usePhaseAccent();
   return (
-    <View style={styles.card}>
-      <View style={styles.floralCardAccent} />
+    <View style={[styles.card, { borderColor: accent.accent + '55' }]}>
+      <View style={[styles.floralCardAccent, { backgroundColor: accent.accent }]} />
       <View style={styles.dateHeader}>
         <View style={styles.dateHeaderMain}>
           <Text style={styles.dateWeekday}>{weekday}</Text>
@@ -702,15 +747,26 @@ function DayForm({
           </View>
         </View>
         <TouchableOpacity
-          style={[styles.journalBtn, hasJournal && styles.journalBtnActive]}
+          style={[
+            styles.journalBtn,
+            hasJournal && {
+              borderColor: accent.accent,
+              backgroundColor: accent.accent + '18',
+            },
+          ]}
           onPress={openJournal}
         >
           <BookOpen
             size={ICON_SIZES.card}
             weight={hasJournal ? 'fill' : 'regular'}
-            color={hasJournal ? ROSE_DEEP : MUTED}
+            color={hasJournal ? accent.accent : MUTED}
           />
-          <Text style={[styles.journalBtnLabel, hasJournal && styles.journalBtnLabelActive]}>
+          <Text
+            style={[
+              styles.journalBtnLabel,
+              hasJournal && { color: accent.accent, fontWeight: '700' },
+            ]}
+          >
             Journal
           </Text>
         </TouchableOpacity>
@@ -900,16 +956,19 @@ function SuiviTab({
   selectedDate,
   onSelectDate,
   onUpdateDay,
+  userId,
 }: {
   data: CycleData;
   selectedDate: string;
   onSelectDate: (d: string) => void;
   onUpdateDay: (date: string, patch: Partial<DayEntry>) => void;
+  userId?: string;
 }) {
   const markedDates = useMemo(() => buildMarkedDates(data, selectedDate), [data, selectedDate]);
   const cycleLength = useMemo(() => computeAvgCycleLength(data), [data]);
   const periodDays = useMemo(() => computeAvgPeriodDays(data), [data]);
   const hasHistory = getPeriodStarts(data).length >= 2;
+  const { accent } = usePhaseAccent();
 
   const entry = data[selectedDate] ?? {};
 
@@ -936,6 +995,7 @@ function SuiviTab({
 
   return (
     <ScrollView style={styles.tabScroll} contentContainerStyle={styles.tabContent}>
+      <PlantCompanionCard data={data} userId={userId} />
       <View style={styles.calendarCard}>
         <Calendar
           current={selectedDate}
@@ -948,13 +1008,13 @@ function SuiviTab({
             backgroundColor: 'transparent',
             calendarBackground: 'transparent',
             textSectionTitleColor: MUTED,
-            selectedDayBackgroundColor: SAGE,
-            todayTextColor: ROSE_DEEP,
-            todayBackgroundColor: SAGE_LIGHT + '55',
+            selectedDayBackgroundColor: accent.accent,
+            todayTextColor: accent.accent,
+            todayBackgroundColor: accent.highlight + '44',
             dayTextColor: TEXT,
             textDisabledColor: BORDER,
             monthTextColor: TEXT,
-            arrowColor: ROSE,
+            arrowColor: accent.accent,
             textDayFontWeight: '500',
             textMonthFontWeight: '700',
             textDayHeaderFontSize: 12,
@@ -1001,6 +1061,14 @@ function SuiviTab({
 
 // ─── Main App ───────────────────────────────────────────────────────────────
 export default function App() {
+  return (
+    <PhaseAccentProvider>
+      <AppRoot />
+    </PhaseAccentProvider>
+  );
+}
+
+function AppRoot() {
   const [phase, setPhase] = useState<AppPhase>('loading');
   const [storedPin, setStoredPin] = useState<string | null>(null);
   const [pinError, setPinError] = useState('');
@@ -1011,14 +1079,40 @@ export default function App() {
   const [highlightTopicId, setHighlightTopicId] = useState<string | null>(null);
   const [syncError, setSyncError] = useState('');
   const [loadingData, setLoadingData] = useState(false);
+  /** true seulement après un load serveur réussi — empêche d'écraser la base avec {}. */
+  const [dataHydrated, setDataHydrated] = useState(false);
+  const persistQueue = useRef(createSerialQueue());
+  const syncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingServerSync = useRef<CycleData | null>(null);
+  const sessionUserIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    sessionUserIdRef.current = session?.user?.id ?? null;
+  }, [session]);
 
   const enterMainApp = useCallback(async () => {
     setPhase('main');
   }, []);
 
+  const applyHydratedData = useCallback((result: HydrateResult) => {
+    setCycleData(result.data);
+    setDataHydrated(result.hydrated);
+    if (!result.hydrated) {
+      setSyncError(
+        'Impossible de charger vos données. Les modifications sont bloquées pour éviter d\'écraser votre historique. Rechargez la page.',
+      );
+    } else if (result.fromCache) {
+      setSyncError(
+        'Mode hors ligne : historique local affiché. La sync serveur reprendra à la prochaine sauvegarde.',
+      );
+    } else {
+      setSyncError('');
+    }
+  }, []);
+
   const afterPinUnlock = useCallback(async () => {
     if (!supabase) {
-      Alert.alert(
+      void alertAsync(
         'Configuration requise',
         'Ajoutez EXPO_PUBLIC_SUPABASE_URL et EXPO_PUBLIC_SUPABASE_ANON_KEY dans un fichier .env',
       );
@@ -1029,12 +1123,10 @@ export default function App() {
     if (data.session) {
       setSession(data.session);
       setLoadingData(true);
+      setDataHydrated(false);
       try {
-        const loaded = await loadCycleData(data.session.user.id);
-        setCycleData(loaded);
-        await enterMainApp();
-      } catch {
-        setSyncError('Impossible de charger vos données.');
+        const result = await hydrateCycleData(data.session.user.id);
+        applyHydratedData(result);
         await enterMainApp();
       } finally {
         setLoadingData(false);
@@ -1042,7 +1134,7 @@ export default function App() {
     } else {
       setPhase('auth');
     }
-  }, [enterMainApp]);
+  }, [enterMainApp, applyHydratedData]);
 
   const handleLearnMore = useCallback((articleId: string) => {
     setHighlightTopicId(articleId);
@@ -1059,18 +1151,16 @@ export default function App() {
     async (s: Session) => {
       setSession(s);
       setLoadingData(true);
+      setDataHydrated(false);
       try {
-        const loaded = await loadCycleData(s.user.id);
-        setCycleData(loaded);
-        await enterMainApp();
-      } catch {
-        setSyncError('Impossible de charger vos données.');
+        const result = await hydrateCycleData(s.user.id);
+        applyHydratedData(result);
         await enterMainApp();
       } finally {
         setLoadingData(false);
       }
     },
-    [enterMainApp],
+    [enterMainApp, applyHydratedData],
   );
 
   const processAuthUrl = useCallback(
@@ -1079,6 +1169,9 @@ export default function App() {
       try {
         const result = await handleAuthDeepLink(supabase, url);
         if (result === 'recovery') {
+          if (Platform.OS === 'web' && typeof window !== 'undefined') {
+            window.history.replaceState({}, '', '/reset-password');
+          }
           setPhase('reset-password');
           return true;
         }
@@ -1093,7 +1186,7 @@ export default function App() {
           }
         }
       } catch (e: unknown) {
-        Alert.alert(
+        void alertAsync(
           'Lien invalide',
           e instanceof Error ? e.message : 'Impossible de traiter le lien reçu par email.',
         );
@@ -1128,6 +1221,34 @@ export default function App() {
     return () => sub.remove();
   }, [processAuthUrl]);
 
+  useEffect(() => {
+    if (!supabase) return;
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === 'TOKEN_REFRESHED' && nextSession) {
+        setSession(nextSession);
+        return;
+      }
+
+      if (event === 'SIGNED_OUT') {
+        if (syncDebounceRef.current) {
+          clearTimeout(syncDebounceRef.current);
+          syncDebounceRef.current = null;
+        }
+        pendingServerSync.current = null;
+        setSession(null);
+        setCycleData({});
+        setDataHydrated(false);
+        setSyncError('');
+        setPhase('auth');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   const handlePinEntered = useCallback(
     async (pin: string) => {
       setPinError('');
@@ -1147,24 +1268,68 @@ export default function App() {
   };
 
   const persistData = useCallback(
-    async (next: CycleData) => {
-      if (!session) return;
-      try {
-        await saveCycleData(session.user.id, next);
-        setSyncError('');
-      } catch (e: unknown) {
-        const msg =
-          e && typeof e === 'object' && 'message' in e && typeof e.message === 'string'
-            ? e.message
-            : '';
-        setSyncError(msg ? `Sauvegarde impossible : ${msg}` : 'Sauvegarde impossible — vérifiez votre connexion.');
-      }
+    (next: CycleData) => {
+      if (!session || !dataHydrated) return;
+      const userId = session.user.id;
+
+      void saveCachedCycleData(userId, next).catch(() => {
+        /* cache local best-effort */
+      });
+
+      pendingServerSync.current = next;
+      if (syncDebounceRef.current) clearTimeout(syncDebounceRef.current);
+      syncDebounceRef.current = setTimeout(() => {
+        syncDebounceRef.current = null;
+        const toSave = pendingServerSync.current;
+        pendingServerSync.current = null;
+        if (!toSave) return;
+
+        void persistQueue.current(async () => {
+          try {
+            await saveCycleData(userId, toSave);
+            setSyncError('');
+          } catch (e: unknown) {
+            const msg =
+              e && typeof e === 'object' && 'message' in e && typeof e.message === 'string'
+                ? e.message
+                : '';
+            setSyncError(
+              msg
+                ? `Sauvegarde impossible : ${msg}`
+                : 'Sauvegarde impossible — vérifiez votre connexion.',
+            );
+          }
+        });
+      }, SYNC_DEBOUNCE_MS);
     },
-    [session],
+    [session, dataHydrated],
   );
+
+  const flushPendingServerSync = useCallback(async () => {
+    if (syncDebounceRef.current) {
+      clearTimeout(syncDebounceRef.current);
+      syncDebounceRef.current = null;
+    }
+    const toSave = pendingServerSync.current;
+    pendingServerSync.current = null;
+    const userId = sessionUserIdRef.current;
+    if (!toSave || !userId || !dataHydrated) return;
+    try {
+      await saveCycleData(userId, toSave);
+      setSyncError('');
+    } catch {
+      /* déjà en cache local */
+    }
+  }, [dataHydrated]);
 
   const updateDay = useCallback(
     (date: string, patch: Partial<DayEntry>) => {
+      if (!dataHydrated) {
+        setSyncError(
+          'Données non chargées — modifications bloquées pour protéger votre historique. Rechargez la page.',
+        );
+        return;
+      }
       setCycleData((prev) => {
         const current = prev[date] ?? {};
         const merged = applyDayPatch(current, patch);
@@ -1178,44 +1343,59 @@ export default function App() {
         return next;
       });
     },
-    [persistData],
+    [persistData, dataHydrated],
   );
 
   const handleLogout = useCallback(async () => {
+    await flushPendingServerSync();
+    const userId = sessionUserIdRef.current;
     if (supabase) await supabase.auth.signOut({ scope: 'local' });
+    if (userId) {
+      await clearCachedCycleData(userId);
+      await clearPlantCompanionState(userId);
+    }
     setSession(null);
     setCycleData({});
+    setDataHydrated(false);
     setSyncError('');
     setPhase('auth');
-  }, []);
+  }, [flushPendingServerSync]);
 
   const handleDeleteAccount = useCallback(async () => {
     if (!supabase || !session) return;
-    const result = await deleteUserAccount(supabase, session.user.id);
+    await flushPendingServerSync();
+    const userId = session.user.id;
+    const result = await deleteUserAccount(supabase, userId);
+    if (!result.ok) {
+      await alertAsync('Suppression', result.message);
+      return;
+    }
+    await clearCachedCycleData(userId);
+    await clearPlantCompanionState(userId);
     setSession(null);
     setCycleData({});
+    setDataHydrated(false);
     setStoredPin(null);
     setPhase('auth');
-    if (result.ok) {
-      Alert.alert(
-        'Compte supprimé',
-        'Votre compte et toutes vos données ont été effacés définitivement.',
-      );
-    } else {
-      Alert.alert('Suppression', result.message);
-    }
-  }, [session]);
+    await alertAsync(
+      'Compte supprimé',
+      'Votre compte et toutes vos données ont été effacés définitivement.',
+    );
+  }, [session, flushPendingServerSync]);
 
   const handlePinEnable = useCallback(async (pin: string) => {
     await persistPin(pin);
     setStoredPin(pin);
-    Alert.alert('Code PIN activé', 'Un code sera demandé à chaque ouverture de l\'application.');
+    await alertAsync(
+      'Code PIN activé',
+      "Un code sera demandé à chaque ouverture de l'application.",
+    );
   }, []);
 
   const handlePinDisable = useCallback(async () => {
     await removeStoredPin();
     setStoredPin(null);
-    Alert.alert('Code PIN désactivé', 'Vous pouvez ouvrir l\'application sans code.');
+    await alertAsync('Code PIN désactivé', "Vous pouvez ouvrir l'application sans code.");
   }, []);
 
   const pinEnabled = storedPin !== null;
@@ -1225,7 +1405,7 @@ export default function App() {
     const { error } = await supabase.auth.updateUser({ password });
     if (error) return formatAuthError(error);
     await supabase.auth.signOut();
-    Alert.alert(
+    await alertAsync(
       'Mot de passe mis à jour',
       'Votre mot de passe a été changé. Connectez-vous avec le nouveau.',
     );
@@ -1289,6 +1469,7 @@ export default function App() {
             selectedDate={selectedDate}
             onSelectDate={setSelectedDate}
             onUpdateDay={updateDay}
+            userId={session?.user?.id}
           />
         ) : activeTab === 'insights' ? (
           <InsightsTab data={cycleData} onLearnMore={handleLearnMore} />
@@ -1307,24 +1488,45 @@ export default function App() {
         )}
       </View>
 
-      <View style={styles.bottomTabBar}>
-        {NAV_TABS.map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <TouchableOpacity
-              key={tab.id}
-              style={[styles.bottomTab, isActive && styles.bottomTabActive]}
-              onPress={() => setActiveTab(tab.id)}
-            >
-              <TabIcon icon={tab.Icon} active={isActive} />
-              <Text style={[styles.bottomTabText, isActive && styles.bottomTabTextActive]}>
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      <MainTabBar activeTab={activeTab} onChangeTab={setActiveTab} />
     </SafeAreaView>
+  );
+}
+
+function MainTabBar({
+  activeTab,
+  onChangeTab,
+}: {
+  activeTab: TabId;
+  onChangeTab: (id: TabId) => void;
+}) {
+  const { accent } = usePhaseAccent();
+  return (
+    <View style={styles.bottomTabBar}>
+      {NAV_TABS.map((tab) => {
+        const isActive = activeTab === tab.id;
+        return (
+          <TouchableOpacity
+            key={tab.id}
+            style={[
+              styles.bottomTab,
+              isActive && { borderTopColor: accent.accent, borderTopWidth: 2 },
+            ]}
+            onPress={() => onChangeTab(tab.id)}
+          >
+            <TabIcon icon={tab.Icon} active={isActive} activeColor={accent.accent} />
+            <Text
+              style={[
+                styles.bottomTabText,
+                isActive && { color: accent.accent, fontWeight: '700' },
+              ]}
+            >
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
   );
 }
 

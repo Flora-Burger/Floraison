@@ -13,26 +13,19 @@ export async function clearLocalUserData(): Promise<void> {
   await AsyncStorage.multiRemove([ONBOARDING_KEY, 'floraison_notification_prefs']);
 }
 
+/**
+ * Suppression atomique via RPC (cycle_data en cascade + auth.users).
+ * Ne pas supprimer cycle_data avant le RPC : en cas d'échec on garderait un compte sans données.
+ */
 export async function deleteUserAccount(
   client: SupabaseClient,
-  userId: string,
+  _userId: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  const { error: dataError } = await client.from('cycle_data').delete().eq('user_id', userId);
-  if (dataError) {
-    return {
-      ok: false,
-      message: `Impossible de supprimer vos données : ${dataError.message}`,
-    };
-  }
-
   const { error: rpcError } = await client.rpc('delete_own_account');
   if (rpcError) {
-    await client.auth.signOut();
-    await clearLocalUserData();
     return {
       ok: false,
-      message:
-        'Vos données de cycle ont été supprimées, mais la fermeture du compte a échoué. Déconnectez-vous et contactez le support si le compte existe encore.',
+      message: `Impossible de supprimer le compte : ${rpcError.message}. Vos données sont intactes — réessayez ou contactez le support.`,
     };
   }
 

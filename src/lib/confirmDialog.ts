@@ -11,7 +11,7 @@ export function confirmAsync(
     if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
       return Promise.resolve(window.confirm(`${title}\n\n${message}`));
     }
-    return Promise.resolve(true);
+    return Promise.resolve(false);
   }
 
   return new Promise((resolve) => {
@@ -23,5 +23,19 @@ export function confirmAsync(
         onPress: () => resolve(true),
       },
     ]);
+  });
+}
+
+/** Alerte multi-plateforme (web : window.alert). */
+export function alertAsync(title: string, message: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+      window.alert(`${title}\n\n${message}`);
+    }
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    Alert.alert(title, message, [{ text: 'OK', onPress: () => resolve() }]);
   });
 }
