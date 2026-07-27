@@ -19,6 +19,7 @@ import {
   getPeriodStarts,
 } from '../lib/cycleMath';
 import { formatNextPeriodLabel } from '../lib/cyclePredictions';
+import { PersonalDiscoveriesSection } from './PersonalDiscoveriesSection';
 import { formatPhaseHero, getPhaseById } from '../constants/cycleContent';
 import { parseDateKey, todayKey } from '../lib/dates';
 import {
@@ -420,6 +421,8 @@ export function InsightsTab({ data, onLearnMore }: InsightsTabProps) {
           <Text style={styles.regularityOk}>Cycles réguliers — prédictions plus fiables.</Text>
         ) : null}
       </View>
+
+      <PersonalDiscoveriesSection data={data} />
 
       {!hasInsights ? (
         <View style={styles.emptyCard}>

@@ -29,6 +29,7 @@ import { SettingsTab } from './src/components/SettingsTab';
 import { PrivacyPolicyScreen } from './src/components/PrivacyPolicyScreen';
 import { PasswordResetScreen } from './src/components/PasswordResetScreen';
 import { PlantCompanionCard } from './src/components/PlantCompanionCard';
+import { DailyMessageCard } from './src/components/DailyMessageCard';
 import { PhaseAccentProvider, usePhaseAccent } from './src/context/PhaseAccentContext';
 import type { PlantReaction } from './src/constants/plantReactions';
 import { clearPlantCompanionState } from './src/lib/plantCompanionStorage';
@@ -38,6 +39,8 @@ import {
   notePlantAppOpen,
 } from './src/lib/plantReactionDetect';
 import { clearPlantGallery } from './src/lib/plantRarity';
+import { clearLastDailyMessage } from './src/lib/dailyMessageStorage';
+import { getPlantPhaseFromData } from './src/lib/plantPhase';
 import { getEmailConfirmRedirectUri, getPasswordResetRedirectUri } from './src/lib/authRedirect';
 import { deleteUserAccount } from './src/lib/accountDeletion';
 import { alertAsync } from './src/lib/confirmDialog';
@@ -982,6 +985,7 @@ function SuiviTab({
   const { accent } = usePhaseAccent();
 
   const entry = data[selectedDate] ?? {};
+  const plantPhase = useMemo(() => getPlantPhaseFromData(data, todayKey()), [data]);
 
   const renderCalendarDay = useCallback(
     (props: {
@@ -1011,6 +1015,11 @@ function SuiviTab({
         userId={userId}
         reactionTrigger={plantReaction}
         onReactionDone={onPlantReactionDone}
+      />
+      <DailyMessageCard
+        phase={plantPhase?.phase}
+        userId={userId}
+        date={todayKey()}
       />
       <View style={styles.calendarCard}>
         <Calendar
@@ -1416,6 +1425,7 @@ function AppRoot() {
       await clearPlantCompanionState(userId);
       await clearPlantGallery(userId);
       await clearPlantReactionFlags(userId);
+      await clearLastDailyMessage(userId);
     }
     setSession(null);
     setCycleData({});
@@ -1437,6 +1447,7 @@ function AppRoot() {
     await clearPlantCompanionState(userId);
     await clearPlantGallery(userId);
     await clearPlantReactionFlags(userId);
+    await clearLastDailyMessage(userId);
     setSession(null);
     setCycleData({});
     setDataHydrated(false);
