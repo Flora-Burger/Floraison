@@ -23,20 +23,8 @@ export function SoftPredictionsBanner({
   const reason = predictionPauseReason(data, prefs);
   const regularity = getCycleRegularity(data);
 
-  if (!reason) {
-    if (regularity.status !== 'slightly_variable') return null;
-    const text =
-      'Tes cycles bougent un peu — les prévisions restent indicatives.';
-    return (
-      <View
-        style={[styles.wrap, { borderColor: accent.accent + '33' }]}
-        accessibilityRole="summary"
-        accessibilityLabel={text}
-      >
-        <Text style={styles.text}>{text}</Text>
-      </View>
-    );
-  }
+  // Plus de bannière « légèrement variable » — trop de bruit sur Suivi
+  if (!reason) return null;
 
   if (prefs.pausePredictions) {
     return (

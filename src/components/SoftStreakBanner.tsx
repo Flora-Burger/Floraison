@@ -8,24 +8,24 @@ import { useMemo } from 'react';
 
 type SoftStreakBannerProps = {
   data: CycleData;
+  /** Seuil d’affichage (défaut 3 — moins de bruit). */
+  minStreak?: number;
 };
 
 /** Encouragement léger — pas de gamification agressive. */
-export function SoftStreakBanner({ data }: SoftStreakBannerProps) {
+export function SoftStreakBanner({ data, minStreak = 3 }: SoftStreakBannerProps) {
   const { accent } = usePhaseAccent();
   const streak = useMemo(
     () => countConsecutiveLoggedDays(data, todayKey()),
     [data],
   );
 
-  if (streak < 2) return null;
+  if (streak < minStreak) return null;
 
   const message =
-    streak === 2
-      ? '2 jours notés d’affilée — une belle constance douce'
-      : streak < 7
-        ? `${streak} jours d’affilée — ta plante te suit pas à pas`
-        : `${streak} jours d’affilée — sans pression, juste le fil`;
+    streak < 7
+      ? `${streak} jours d’affilée — ta plante te suit pas à pas`
+      : `${streak} jours d’affilée — sans pression, juste le fil`;
 
   return (
     <View

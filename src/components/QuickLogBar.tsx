@@ -3,10 +3,13 @@ import type { DayEntry, Flow, MoodTag, PhysicalSymptom } from '../types/cycle';
 import { usePhaseAccent } from '../context/PhaseAccentContext';
 import { BG_SOFT, BORDER, MUTED, TEXT } from '../constants/theme';
 import { toggleMulti } from '../lib/dayEntry';
+import { isEmptyDayEntry } from '../lib/cycleInsights';
 
 type QuickLogBarProps = {
   entry: DayEntry;
   onChange: (patch: Partial<DayEntry>) => void;
+  /** Heure locale pour le mode soir. */
+  hour?: number;
 };
 
 const ENERGY_OPTIONS: {
@@ -47,21 +50,39 @@ const FLOW_QUICK: { id: Flow; label: string }[] = [
   { id: 'fort', label: 'Fort' },
 ];
 
-export function QuickLogBar({ entry, onChange }: QuickLogBarProps) {
+export function QuickLogBar({
+  entry,
+  onChange,
+  hour = new Date().getHours(),
+}: QuickLogBarProps) {
   const { accent } = usePhaseAccent();
   const hardDayActive =
     Boolean(entry.physical?.includes('fatigue')) &&
     Boolean(entry.mood?.includes('irritable')) &&
     Boolean(entry.mood?.includes('triste'));
+  const eveningCheckIn = hour >= 18 && isEmptyDayEntry(entry);
 
   return (
     <View
-      style={[styles.card, { borderColor: accent.accent + '44' }]}
+      style={[
+        styles.card,
+        {
+          borderColor: eveningCheckIn
+            ? accent.accent + '88'
+            : accent.accent + '44',
+        },
+      ]}
       accessibilityRole="summary"
-      accessibilityLabel="Log rapide"
+      accessibilityLabel={eveningCheckIn ? 'Check-in du soir' : 'Log rapide'}
     >
-      <Text style={styles.title}>Log rapide</Text>
-      <Text style={styles.hint}>Un tap suffit — tu peux affiner plus bas</Text>
+      <Text style={styles.title}>
+        {eveningCheckIn ? 'Check-in du soir' : 'Log rapide'}
+      </Text>
+      <Text style={styles.hint}>
+        {eveningCheckIn
+          ? 'Une minute avant de couper — humeur ou énergie suffisent'
+          : 'Un tap suffit — tu peux affiner plus bas'}
+      </Text>
 
       <TouchableOpacity
         style={[

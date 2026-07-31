@@ -34,14 +34,10 @@ import { OnboardingScreen, type OnboardingResult } from './src/components/Onboar
 import { FirstPeriodBanner } from './src/components/FirstPeriodBanner';
 import { QuickLogBar } from './src/components/QuickLogBar';
 import { SecondCycleNudge } from './src/components/SecondCycleNudge';
-import { BloomCompass } from './src/components/BloomCompass';
 import { PhaseNotesCard } from './src/components/PhaseNotesCard';
-import { PlantCorrespondenceCard } from './src/components/PlantCorrespondenceCard';
 import { CycleCloseRitualModal } from './src/components/CycleCloseRitualModal';
 import { DawnRitualModal } from './src/components/DawnRitualModal';
-import { SoftStreakBanner } from './src/components/SoftStreakBanner';
-import { SoftPredictionsBanner } from './src/components/SoftPredictionsBanner';
-import { CycleSeasonVerse } from './src/components/CycleSeasonVerse';
+import { SuiviCueSlot } from './src/components/SuiviCueSlot';
 import { PhaseAccentProvider, usePhaseAccent } from './src/context/PhaseAccentContext';
 import type { PlantReaction } from './src/constants/plantReactions';
 import {
@@ -49,6 +45,8 @@ import {
   notePlantAppOpen,
 } from './src/lib/plantReactionDetect';
 import { detectCycleClose, type CycleCloseSummary } from './src/lib/cycleClose';
+import { loadPlantGallery } from './src/lib/plantRarity';
+import { getSpecies, speciesFromLegacyVariante } from './src/constants/flowerSpecies';
 import { getPlantPhaseFromData } from './src/lib/plantPhase';
 import {
   hasCompletedOnboarding,
@@ -1011,7 +1009,6 @@ function SuiviTab({
   onStartPeriodSetup,
   predPrefs,
   onPredPrefsChange,
-  onHerbierPress,
 }: {
   data: CycleData;
   selectedDate: string;
@@ -1023,7 +1020,6 @@ function SuiviTab({
   onStartPeriodSetup?: () => void;
   predPrefs: PredictionPrefs;
   onPredPrefsChange: (prefs: PredictionPrefs) => void;
-  onHerbierPress?: () => void;
 }) {
   const pausePredictions = shouldPausePredictions(data, predPrefs);
   const markedDates = useMemo(
@@ -1078,24 +1074,16 @@ function SuiviTab({
         userId={userId}
         date={todayKey()}
       />
-      <SoftStreakBanner data={data} />
-      <SoftPredictionsBanner
+      <SuiviCueSlot
         data={data}
-        prefs={predPrefs}
-        onResume={() => onPredPrefsChange({ pausePredictions: false })}
-      />
-      <CycleSeasonVerse
-        data={data}
-        phase={plantPhase?.phase}
         userId={userId}
-        onPressed={onHerbierPress}
+        predPrefs={predPrefs}
+        onPredResume={() => onPredPrefsChange({ pausePredictions: false })}
       />
-      <BloomCompass data={data} />
       <QuickLogBar
         entry={entry}
         onChange={(patch) => onUpdateDay(selectedDate, patch)}
       />
-      <PlantCorrespondenceCard data={data} userId={userId} />
       <View style={styles.calendarCard}>
         <Calendar
           current={selectedDate}
@@ -1209,7 +1197,6 @@ function AppRoot() {
   const [cycleCloseSummary, setCycleCloseSummary] = useState<CycleCloseSummary | null>(null);
   const [predPrefs, setPredPrefs] = useState<PredictionPrefs>(DEFAULT_PREDICTION_PREFS);
   const [showDawnRitual, setShowDawnRitual] = useState(false);
-  const [herbierRefreshKey, setHerbierRefreshKey] = useState(0);
   const persistQueue = useRef(createSerialQueue());
   const syncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingServerSync = useRef<CycleData | null>(null);
@@ -1597,7 +1584,37 @@ function AppRoot() {
 
         const closeSummary = detectCycleClose(prev, next, patch, date);
         if (closeSummary) {
-          queueMicrotask(() => setCycleCloseSummary(closeSummary));
+          const uid = sessionUserIdRef.current;
+          queueMicrotask(() => {
+            if (!uid) {
+              setCycleCloseSummary(closeSummary);
+              return;
+            }
+            void loadPlantGallery(uid).then((gallery) => {
+              const rec = gallery.byCycle[closeSummary.previousStart];
+              if (!rec) {
+                setCycleCloseSummary(closeSummary);
+                return;
+              }
+              const sid =
+                rec.speciesId ?? speciesFromLegacyVariante(rec.variante);
+              const species = getSpecies(sid, rec.variante);
+              setCycleCloseSummary({
+                ...closeSummary,
+                flowerName: species.name,
+                speciesId: sid,
+                lines: [
+                  closeSummary.lines[0],
+                  `Floraison : ${species.name}${
+                    (closeSummary.hardDays ?? 0) > 0
+                      ? ` · ${closeSummary.hardDays} jour${(closeSummary.hardDays ?? 0) > 1 ? 's' : ''} difficile${(closeSummary.hardDays ?? 0) > 1 ? 's' : ''}`
+                      : ''
+                  }`,
+                  `Moyenne habituelle : ~${closeSummary.averageLength} jours`,
+                ],
+              });
+            });
+          });
         }
 
         const userId = sessionUserIdRef.current;
@@ -1793,7 +1810,6 @@ function AppRoot() {
             onStartPeriodSetup={handleStartPeriodSetup}
             predPrefs={predPrefs}
             onPredPrefsChange={handlePredPrefsChange}
-            onHerbierPress={() => setHerbierRefreshKey((k) => k + 1)}
           />
         ) : activeTab === 'insights' ? (
           <InsightsTab
@@ -1801,7 +1817,6 @@ function AppRoot() {
             onLearnMore={handleLearnMore}
             userId={session?.user?.id}
             predPrefs={predPrefs}
-            herbierRefreshKey={herbierRefreshKey}
           />
         ) : activeTab === 'corps' ? (
           <CorpsTab

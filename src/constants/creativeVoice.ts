@@ -23,29 +23,6 @@ const DAWN_GREETINGS: Record<CyclePhaseId, string[]> = {
   ],
 };
 
-const PLANT_REPLIES: Record<CyclePhaseId, string[]> = {
-  menstruelle: [
-    'Je t’ai lue. Je me fais petite pour laisser de la place.',
-    'Merci. Je garde ta phrase dans mon silence.',
-    'Je suis là, racine contre racine. Pas besoin d’autre réponse.',
-  ],
-  folliculaire: [
-    'J’ai senti ta lettre monter dans ma tige.',
-    'Je pousse un peu plus fort — juste pour toi.',
-    'Ta phrase est une goutte. J’en fais une feuille.',
-  ],
-  ovulatoire: [
-    'Je fleuris en réponse. C’est tout ce que je sais faire.',
-    'Ta lettre ouvre ma corolle. Je te regarde.',
-    'J’ai reçu. Aujourd’hui je suis toute couleur.',
-  ],
-  luteale: [
-    'Je plie ta lettre dans un pétale qui se referme.',
-    'Merci. Je mûris avec ce que tu m’as confié.',
-    'Je te réponds en ombre douce. C’est ma façon.',
-  ],
-};
-
 function hashKey(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
@@ -56,20 +33,3 @@ export function pickDawnGreeting(phase: CyclePhaseId, dateKey: string): string {
   const pool = DAWN_GREETINGS[phase];
   return pool[hashKey(`${dateKey}:${phase}:dawn`) % pool.length]!;
 }
-
-export function pickPlantReply(
-  phase: CyclePhaseId,
-  userText: string,
-  dateKey: string,
-): string {
-  const pool = PLANT_REPLIES[phase];
-  return pool[hashKey(`${dateKey}:${phase}:${userText.slice(0, 24)}`) % pool.length]!;
-}
-
-/** Noms botaniques poétiques (pas cliniques) pour la boussole. */
-export const BLOOM_COMPASS_LABELS: Record<CyclePhaseId, { short: string; full: string }> = {
-  menstruelle: { short: 'Graine', full: 'Temps de la graine' },
-  folliculaire: { short: 'Pousse', full: 'Temps de la pousse' },
-  ovulatoire: { short: 'Fleur', full: 'Temps de la fleur' },
-  luteale: { short: 'Fruit', full: 'Temps du fruit' },
-};

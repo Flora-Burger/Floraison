@@ -41,12 +41,12 @@ export function CycleCloseRitualModal({
             progression={0.55}
             size={100}
             variante="commune"
+            speciesId={summary.speciesId}
           />
           <Text style={styles.title} accessibilityRole="header">
-            Cycle terminé
+            Ce cycle en 3 lignes
           </Text>
           <Text style={styles.companion}>{summary.companionLine}</Text>
-          <Text style={styles.verse}>Une saison se ferme. La suivante germera à son heure.</Text>
           {summary.lines.map((line) => (
             <Text key={line} style={styles.line}>
               {line}
@@ -94,29 +94,26 @@ const styles = StyleSheet.create({
     color: TEXT,
     textAlign: 'center',
     lineHeight: 20,
-    marginBottom: 8,
-  },
-  verse: {
-    fontSize: 13,
-    fontStyle: 'italic',
-    color: MUTED,
-    textAlign: 'center',
-    lineHeight: 18,
     marginBottom: 12,
   },
   line: {
     fontSize: 13,
     color: MUTED,
+    textAlign: 'center',
     lineHeight: 19,
+    marginBottom: 6,
     alignSelf: 'stretch',
-    marginBottom: 4,
   },
   btn: {
     marginTop: 16,
     backgroundColor: ROSE,
-    paddingVertical: 12,
     paddingHorizontal: 22,
-    borderRadius: 16,
+    paddingVertical: 12,
+    borderRadius: 14,
   },
-  btnText: { color: '#FFFCF9', fontWeight: '700', fontSize: 15 },
+  btnText: {
+    color: '#FFFCF9',
+    fontWeight: '700',
+    fontSize: 15,
+  },
 });

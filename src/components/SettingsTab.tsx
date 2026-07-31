@@ -10,10 +10,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Bell, FilePdf, FirstAidKit, Lock, Shield, SignOut, Trash, Compass } from 'phosphor-react-native';
+import { Bell, DownloadSimple, FilePdf, FirstAidKit, Lock, Shield, SignOut, Trash, Compass, AirplaneTilt } from 'phosphor-react-native';
 import type { CycleData } from '../types/cycle';
 import { exportMedicalReportPdf } from '../lib/exportMedicalPdf';
+import { sharePersonalExport } from '../lib/exportPersonalData';
 import { confirmAsync } from '../lib/confirmDialog';
+import { todayKey } from '../lib/dates';
 import { PrivacyPolicyScreen } from './PrivacyPolicyScreen';
 import { DoctorBriefModal } from './DoctorBriefModal';
 import {
@@ -64,6 +66,7 @@ export function SettingsTab({
   onPredPrefsChange,
 }: SettingsTabProps) {
   const [exporting, setExporting] = useState(false);
+  const [exportingPersonal, setExportingPersonal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [doctorOpen, setDoctorOpen] = useState(false);
@@ -121,6 +124,15 @@ export function SettingsTab({
       await exportMedicalReportPdf(data, userEmail);
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handlePersonalExport = async (format: 'json' | 'csv') => {
+    setExportingPersonal(true);
+    try {
+      await sharePersonalExport(data, format);
+    } finally {
+      setExportingPersonal(false);
     }
   };
 
@@ -302,6 +314,18 @@ export function SettingsTab({
           <Text style={styles.sectionTitle}>Cycle</Text>
           <View style={styles.settingCard}>
             <View style={[styles.iconWrap, { backgroundColor: SAGE_LIGHT + '55' }]}>
+              <AirplaneTilt size={ICON_SIZES.header} weight="duotone" color={ROSE_DEEP} />
+            </View>
+            <View style={styles.settingText}>
+              <Text style={styles.settingTitle}>Jour local (voyage)</Text>
+              <Text style={styles.settingDesc}>
+                Les jours suivent le calendrier de ton téléphone. Aujourd’hui côté appareil :{' '}
+                {todayKey()}. En voyage, change le fuseau du téléphone — Floraison suit.
+              </Text>
+            </View>
+          </View>
+          <View style={styles.settingCard}>
+            <View style={[styles.iconWrap, { backgroundColor: SAGE_LIGHT + '55' }]}>
               <Compass size={ICON_SIZES.header} weight="duotone" color={ROSE_DEEP} />
             </View>
             <View style={styles.settingText}>
@@ -379,6 +403,48 @@ export function SettingsTab({
             <Text style={styles.actionTitle}>Exporter en PDF</Text>
             <Text style={styles.actionDesc}>
               Rapport clair pour votre médecin ou gynécologue : cycles, symptômes et tendances.
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.actionCard}
+          onPress={() => void handlePersonalExport('json')}
+          disabled={exportingPersonal}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Exporter mes données en JSON"
+        >
+          <View style={[styles.iconWrap, { backgroundColor: SAGE_LIGHT + '55' }]}>
+            {exportingPersonal ? (
+              <ActivityIndicator color={ROSE_DEEP} />
+            ) : (
+              <DownloadSimple size={ICON_SIZES.header} weight="bold" color={ROSE_DEEP} />
+            )}
+          </View>
+          <View style={styles.actionText}>
+            <Text style={styles.actionTitle}>Export perso (JSON)</Text>
+            <Text style={styles.actionDesc}>
+              Toutes tes journées — pour toi seulement, via la feuille de partage.
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.actionCard}
+          onPress={() => void handlePersonalExport('csv')}
+          disabled={exportingPersonal}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Exporter mes données en CSV"
+        >
+          <View style={[styles.iconWrap, { backgroundColor: SAGE_LIGHT + '55' }]}>
+            <DownloadSimple size={ICON_SIZES.header} weight="duotone" color={ROSE_DEEP} />
+          </View>
+          <View style={styles.actionText}>
+            <Text style={styles.actionTitle}>Export perso (CSV)</Text>
+            <Text style={styles.actionDesc}>
+              Tableau simple à ouvrir dans un tableur — usage privé.
             </Text>
           </View>
         </TouchableOpacity>

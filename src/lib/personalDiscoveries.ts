@@ -81,7 +81,7 @@ function detectSymptomPatterns(data: CycleData, cycleCount: number): PersonalDis
       id: `discovery:symptom:${insight.id}`,
       kind: 'symptom_phase_pattern' as const,
       title: `${insight.label} en ${insight.phase === 'avant_regles' ? 'fin de cycle' : getPhaseById(insight.phase as CyclePhaseId).shortTitle.toLowerCase()}`,
-      body: `Dans tes ${cycleCount} derniers cycles, tu as noté « ${insight.label.toLowerCase()} » sur ${formatPercent(insight.rate)} des jours renseignés ${phaseLabel === 'les 7 jours avant tes règles' ? phaseLabel : `en ${phaseLabel}`}.`,
+      body: `Chez toi, « ${insight.label.toLowerCase()} » revient souvent ${phaseLabel === 'les 7 jours avant tes règles' ? phaseLabel : `en ${phaseLabel}`} (${formatPercent(insight.rate)} des jours notés).`,
       icon: 'symptom' as const,
       detectedAt: now,
       articleId: symptomArticle ?? phaseArticle,

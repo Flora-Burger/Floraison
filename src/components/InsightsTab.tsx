@@ -24,7 +24,6 @@ import { CycleCompareSection } from './CycleCompareSection';
 import { FlowerGallerySection } from './FlowerGallerySection';
 import { CycleSummaryCard } from './CycleSummaryCard';
 import { FriendShareCardButton } from './FriendShareCard';
-import { HerbierSection } from './HerbierSection';
 import { formatPhaseHero, getPhaseById } from '../constants/cycleContent';
 import { parseDateKey, todayKey } from '../lib/dates';
 import {
@@ -51,7 +50,6 @@ type InsightsTabProps = {
   onLearnMore?: (articleId: string) => void;
   userId?: string;
   predPrefs?: PredictionPrefs;
-  herbierRefreshKey?: number;
 };
 
 function phaseColor(phase: InsightPhaseId): string {
@@ -338,7 +336,6 @@ export function InsightsTab({
   onLearnMore,
   userId,
   predPrefs = DEFAULT_PREDICTION_PREFS,
-  herbierRefreshKey = 0,
 }: InsightsTabProps) {
   const pausePredictions = shouldPausePredictions(data, predPrefs);
 
@@ -481,8 +478,6 @@ export function InsightsTab({
       <PersonalDiscoveriesSection data={data} onLearnMore={onLearnMore} />
 
       <FriendShareCardButton data={data} />
-
-      <HerbierSection userId={userId} refreshKey={herbierRefreshKey} />
 
       <FlowerGallerySection userId={userId} />
 

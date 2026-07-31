@@ -23,10 +23,15 @@ import {
 import {
   dismissFlowerBadge,
   ensureFlowerVariantForCycle,
-  getFlowerVariantForCycle,
+  galleryAlbumSeason,
   loadPlantGallery,
+  resolveDisplaySpecies,
   type FlowerVariante,
 } from '../lib/plantRarity';
+import type { FlowerSpeciesId } from '../constants/flowerSpecies';
+import { RARITY_LABELS } from '../constants/flowerSpecies';
+import type { AlbumSeasonId } from '../constants/albumSeason';
+import { isHardDayEntry } from '../lib/cycleStats';
 import { getPeriodOverdueDays, isPeriodDueOrLate } from '../lib/periodTiming';
 import { countConsecutiveLoggedDays } from '../lib/plantReactionDetect';
 import { pickPlantWhisper } from '../lib/plantWhisper';
@@ -92,6 +97,10 @@ export function PlantCompanionCard({
   const [display, setDisplay] = useState<PlantPhaseState | null>(target);
   const [showPreview, setShowPreview] = useState(__DEV__);
   const [variante, setVariante] = useState<FlowerVariante>('commune');
+  const [speciesId, setSpeciesId] = useState<FlowerSpeciesId>('capucine');
+  const [flowerName, setFlowerName] = useState('Capucine');
+  const [isSignature, setIsSignature] = useState(false);
+  const [seasonId, setSeasonId] = useState<AlbumSeasonId>('printemps');
   const [showRarityBadge, setShowRarityBadge] = useState(false);
   const [whisper, setWhisper] = useState<string | null>(null);
   const animRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -108,11 +117,7 @@ export function PlantCompanionCard({
     [periodLate, data, today],
   );
   const todayEntry = data[today];
-  const hardDay = Boolean(
-    todayEntry?.physical?.includes('fatigue') &&
-      todayEntry?.mood?.includes('irritable') &&
-      todayEntry?.mood?.includes('triste'),
-  );
+  const hardDay = isHardDayEntry(todayEntry);
   const streak = useMemo(() => countConsecutiveLoggedDays(data, today), [data, today]);
   const loggedToday = Boolean(todayEntry && !isEmptyDayEntry(todayEntry));
 
@@ -142,6 +147,10 @@ export function PlantCompanionCard({
   useEffect(() => {
     if (!userId || !target || !cycleStart) {
       setVariante('commune');
+      setSpeciesId('capucine');
+      setFlowerName('Capucine');
+      setIsSignature(false);
+      setSeasonId('printemps');
       setShowRarityBadge(false);
       return;
     }
@@ -155,18 +164,18 @@ export function PlantCompanionCard({
       );
       const gallery = await loadPlantGallery(userId);
       if (cancelled) return;
+      const display = resolveDisplaySpecies(gallery, cycleStart);
+      const season = galleryAlbumSeason(gallery);
+      setVariante(display.variante);
+      setSpeciesId(display.speciesId);
+      setFlowerName(display.name);
+      setIsSignature(display.isSignature);
+      setSeasonId(season.id);
       const record = gallery.byCycle[cycleStart];
-      const v = getFlowerVariantForCycle(gallery, cycleStart);
-      setVariante(v);
       const inBloom =
         target.phase === 'ovulatoire' || target.phase === 'luteale';
       setShowRarityBadge(
-        Boolean(
-          record &&
-            (record.variante === 'rare' || record.variante === 'tres_rare') &&
-            !record.badgeDismissed &&
-            inBloom,
-        ),
+        Boolean(record && !record.badgeDismissed && inBloom),
       );
     })();
     return () => {
@@ -290,6 +299,8 @@ export function PlantCompanionCard({
           progression={display.progression}
           size={132}
           variante={variante}
+          speciesId={speciesId}
+          seasonId={seasonId}
           reaction={reactionTrigger}
           onReactionDone={onReactionDone}
         />
@@ -300,7 +311,8 @@ export function PlantCompanionCard({
           </Text>
           <Text style={styles.meta}>
             Progression {Math.round(display.progression * 100)} %
-            {variante !== 'commune' ? ` · ${variante === 'rare' ? 'rare' : 'très rare'}` : ''}
+            {` · ${flowerName}`}
+            {isSignature && !showRarityBadge ? ' · signature' : ''}
           </Text>
           <Text style={styles.tapHint}>Touche la plante pour un murmure</Text>
           {hardDay ? (
@@ -323,12 +335,14 @@ export function PlantCompanionCard({
           onPress={handleDismissBadge}
           style={[styles.badge, { borderColor: accent.highlight + '88' }]}
           accessibilityRole="button"
-          accessibilityLabel="Badge variante floraison, toucher pour fermer"
+          accessibilityLabel={`Floraison de ce cycle : ${flowerName}`}
         >
           <Text style={[styles.badgeText, { color: accent.accent }]}>
-            Ta plante a fleuri différemment ce mois-ci
+            Floraison : {flowerName}
           </Text>
-          <Text style={styles.badgeHint}>Toucher pour fermer</Text>
+          <Text style={styles.badgeHint}>
+            {RARITY_LABELS[variante]} — touché pour fermer · voir la collection dans Insights
+          </Text>
         </Pressable>
       ) : null}
 

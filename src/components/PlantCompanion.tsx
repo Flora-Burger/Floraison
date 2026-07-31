@@ -5,6 +5,14 @@ import type { CyclePhaseId } from '../types/cycle';
 import { PHASE_ACCENTS } from '../constants/phaseAccent';
 import type { PlantReaction } from '../constants/plantReactions';
 import type { FlowerVariante } from '../lib/plantRarity';
+import {
+  getSpecies,
+  type FlowerSpeciesId,
+} from '../constants/flowerSpecies';
+import {
+  ALBUM_SEASONS,
+  type AlbumSeasonId,
+} from '../constants/albumSeason';
 import { BORDER } from '../constants/theme';
 
 export type PlantCompanionProps = {
@@ -12,6 +20,10 @@ export type PlantCompanionProps = {
   progression: number;
   size?: number;
   variante?: FlowerVariante;
+  /** Espèce de collection (prioritaire sur variante pour les couleurs). */
+  speciesId?: FlowerSpeciesId;
+  /** Saison du pot (collection). */
+  seasonId?: AlbumSeasonId;
   reaction?: PlantReaction | null;
   onReactionDone?: () => void;
 };
@@ -38,9 +50,11 @@ export function computePlantVisuals(
   phase: CyclePhaseId,
   progression: number,
   variante: FlowerVariante = 'commune',
+  speciesId?: FlowerSpeciesId,
 ): VisualParams {
   const p = clamp01(progression);
   const accents = PHASE_ACCENTS[phase];
+  const species = getSpecies(speciesId, variante);
 
   const base: VisualParams = {
     stemHeight: 0.15,
@@ -115,22 +129,27 @@ export function computePlantVisuals(
       visuals = base;
   }
 
-  if (variante === 'rare') {
+  if (variante === 'rare' || species.rarity === 'rare') {
     return {
       ...visuals,
-      petalColor: PHASE_ACCENTS.ovulatoire.highlight,
-      centerColor: PHASE_ACCENTS.ovulatoire.accent,
+      petalColor: species.petalColor,
+      centerColor: species.centerColor,
     };
   }
-  if (variante === 'tres_rare') {
+  if (variante === 'tres_rare' || species.rarity === 'tres_rare') {
     return {
       ...visuals,
-      petalColor: '#9B6B9E',
-      centerColor: '#E8C547',
-      fruitColor: '#9B6B9E',
+      petalColor: species.petalColor,
+      centerColor: species.centerColor,
+      fruitColor: species.petalColor,
     };
   }
-  return visuals;
+  // commune : couleurs d’espèce dès l’ovulation / fleur visible
+  return {
+    ...visuals,
+    petalColor: species.petalColor,
+    centerColor: species.centerColor,
+  };
 }
 
 function Petal({
@@ -177,12 +196,17 @@ export function PlantCompanion({
   progression,
   size = 160,
   variante = 'commune',
+  speciesId,
+  seasonId = 'printemps',
   reaction = null,
   onReactionDone,
 }: PlantCompanionProps) {
+  const species = getSpecies(speciesId, variante);
+  const season =
+    ALBUM_SEASONS.find((s) => s.id === seasonId) ?? ALBUM_SEASONS[0]!;
   const v = useMemo(
-    () => computePlantVisuals(phase, progression, variante),
-    [phase, progression, variante],
+    () => computePlantVisuals(phase, progression, variante, speciesId),
+    [phase, progression, variante, speciesId],
   );
 
   const bounceY = useRef(new Animated.Value(0)).current;
@@ -245,13 +269,13 @@ export function PlantCompanion({
   const flowerCx = stemBaseX;
 
   const petalAngles =
-    variante === 'tres_rare'
+    species.petalLayout === 'huit'
       ? PETAL_ANGLES_TRES_RARE
-      : variante === 'rare'
+      : species.petalLayout === 'six'
         ? PETAL_ANGLES_RARE
         : PETAL_ANGLES_COMMUNE;
 
-  const phaseTint = PHASE_ACCENTS[phase].highlight + '33';
+  const phaseTint = season.frameTint;
 
   return (
     <Animated.View
@@ -262,18 +286,18 @@ export function PlantCompanion({
       ]}
       accessible
       accessibilityRole="image"
-      accessibilityLabel={`Compagnon plante, phase ${phase}${variante !== 'commune' ? `, variante ${variante}` : ''}, progression ${Math.round(progression * 100)} pourcent`}
+      accessibilityLabel={`Compagnon plante, phase ${phase}, fleur ${species.name}, saison ${season.name}, progression ${Math.round(progression * 100)} pourcent`}
     >
       <Svg width={size} height={size} viewBox={`0 0 ${vb} ${vb}`}>
-        {/* Pot — proportions un peu plus larges / stables */}
+        {/* Pot — teinte selon la saison de collection */}
         <Path
           d="M36 95 L41 113 Q60 118 79 113 L84 95 Z"
-          fill="#C4B5A8"
-          stroke="#A89888"
+          fill={season.potFill}
+          stroke={season.potStroke}
           strokeWidth={1}
         />
-        <Ellipse cx={60} cy={95} rx={26} ry={5.5} fill="#D4C4B4" />
-        <Ellipse cx={60} cy={95} rx={21} ry={3.8} fill="#8B7355" opacity={0.55} />
+        <Ellipse cx={60} cy={95} rx={26} ry={5.5} fill={season.potRim} />
+        <Ellipse cx={60} cy={95} rx={21} ry={3.8} fill={season.soil} opacity={0.55} />
 
         {/* Stem */}
         <Path
@@ -327,21 +351,21 @@ export function PlantCompanion({
                 cx={flowerCx}
                 cy={flowerCy}
                 angleDeg={angle}
-                scale={v.flowerScale * (variante === 'tres_rare' ? 0.92 : 1)}
+                scale={v.flowerScale * (species.petalLayout === 'huit' ? 0.92 : 1)}
                 opacity={v.flowerOpacity * 0.92}
                 droop={v.petalDroop}
                 color={v.petalColor}
-                elongated={variante === 'rare'}
+                elongated={species.elongated === true}
               />
             ))}
             <Circle
               cx={flowerCx}
               cy={flowerCy + v.petalDroop * 4}
-              r={(variante === 'tres_rare' ? 5.2 : 4.5) * v.flowerScale}
+              r={(species.petalLayout === 'huit' ? 5.2 : 4.5) * v.flowerScale}
               fill={v.centerColor}
               opacity={v.flowerOpacity}
             />
-            {variante === 'tres_rare' ? (
+            {species.rarity === 'tres_rare' ? (
               <G opacity={v.flowerOpacity * 0.85}>
                 {[
                   [flowerCx - 14, flowerCy - 10],

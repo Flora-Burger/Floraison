@@ -13,7 +13,7 @@ type CompanionRow = {
   updated_at: string;
 };
 
-/** Fusionne galerie distante + locale (union des cycles, seenVariants uniques). */
+/** Fusionne galerie distante + locale (union cycles, raretés, espèces). */
 export function mergeGalleries(
   local: PlantGalleryState,
   remote: PlantGalleryState,
@@ -25,8 +25,22 @@ export function mergeGalleries(
     const l = local.byCycle[key];
     if (l && r.seenAt > l.seenAt) byCycle[key] = r;
   }
-  const seen = new Set([...remote.seenVariants, ...local.seenVariants]);
-  return { byCycle, seenVariants: Array.from(seen) };
+  const seenVariants = new Set([
+    ...(remote.seenVariants ?? []),
+    ...(local.seenVariants ?? []),
+  ]);
+  const seenSpecies = new Set([
+    ...(remote.seenSpecies ?? []),
+    ...(local.seenSpecies ?? []),
+  ]);
+  for (const rec of Object.values(byCycle)) {
+    if (rec.speciesId) seenSpecies.add(rec.speciesId);
+  }
+  return {
+    byCycle,
+    seenVariants: Array.from(seenVariants),
+    seenSpecies: Array.from(seenSpecies),
+  };
 }
 
 export async function pullCompanionState(

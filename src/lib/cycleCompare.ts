@@ -7,6 +7,11 @@ import {
 } from './cycleMath';
 import { getCycleContextForDate } from './cyclePhase';
 import { getPeriodOverdueDays, isPeriodDueOrLate } from './periodTiming';
+import {
+  countHardDaysInRange,
+  currentCycleRange,
+  previousCompletedCycleRange,
+} from './cycleStats';
 
 export type CycleCompareResult = {
   ready: boolean;
@@ -18,6 +23,10 @@ export type CycleCompareResult = {
   overdueDays: number;
   periodDueOrLate: boolean;
   summary: string;
+  /** Jours difficiles (pack log) — cycle en cours vs précédent. */
+  hardDaysCurrent: number | null;
+  hardDaysPrevious: number | null;
+  hardDaysLine: string | null;
 };
 
 export type ReliabilityScore = {
@@ -53,6 +62,9 @@ export function computeCycleCompare(
       overdueDays: 0,
       periodDueOrLate: false,
       summary: 'Enregistre un début de règles pour comparer tes cycles.',
+      hardDaysCurrent: null,
+      hardDaysPrevious: null,
+      hardDaysLine: null,
     };
   }
 
@@ -68,6 +80,31 @@ export function computeCycleCompare(
   const deltaVsPrevious =
     previousLength !== null ? currentDay - previousLength : null;
   const deltaVsAverage = currentDay - averageLength;
+
+  const curRange = currentCycleRange(data, date);
+  const prevRange = previousCompletedCycleRange(data);
+  const hardDaysCurrent = curRange
+    ? countHardDaysInRange(data, curRange.start, curRange.endExclusive)
+    : null;
+  const hardDaysPrevious = prevRange
+    ? countHardDaysInRange(data, prevRange.start, prevRange.endExclusive)
+    : null;
+
+  let hardDaysLine: string | null = null;
+  if (hardDaysCurrent !== null && hardDaysPrevious !== null) {
+    const diff = hardDaysCurrent - hardDaysPrevious;
+    if (hardDaysCurrent === 0 && hardDaysPrevious === 0) {
+      hardDaysLine = 'Pas de « jour difficile » noté sur ces deux cycles.';
+    } else if (diff === 0) {
+      hardDaysLine = `Même rythme de jours difficiles que le cycle précédent (${hardDaysPrevious}).`;
+    } else if (diff < 0) {
+      hardDaysLine = `Moins de jours difficiles pour l’instant (${hardDaysCurrent} vs ${hardDaysPrevious} le cycle d’avant).`;
+    } else {
+      hardDaysLine = `Un peu plus de jours difficiles notés (${hardDaysCurrent} vs ${hardDaysPrevious} le cycle d’avant) — sans jugement.`;
+    }
+  } else if (hardDaysCurrent !== null && hardDaysCurrent > 0) {
+    hardDaysLine = `${hardDaysCurrent} jour${hardDaysCurrent > 1 ? 's' : ''} difficile${hardDaysCurrent > 1 ? 's' : ''} noté${hardDaysCurrent > 1 ? 's' : ''} sur ce cycle.`;
+  }
 
   let summary: string;
   if (periodDueOrLate && overdueDays > 0) {
@@ -98,6 +135,9 @@ export function computeCycleCompare(
     overdueDays,
     periodDueOrLate,
     summary,
+    hardDaysCurrent,
+    hardDaysPrevious,
+    hardDaysLine,
   };
 }
 

@@ -124,8 +124,8 @@ export async function schedulePeriodReminder(
       title: 'Floraison',
       body:
         daysBefore === 1
-          ? 'Tes règles pourraient commencer demain — note-les si elles arrivent.'
-          : `Tes règles pourraient commencer dans ${daysBefore} jours — à toi de voir.`,
+          ? 'Préparation douce : tes règles pourraient commencer demain — note-les si elles arrivent.'
+          : `Préparation douce : tes règles pourraient commencer dans ${daysBefore} jours — à toi de voir.`,
       data: { screen: 'suivi', action: 'period' } satisfies NotificationNavData,
     },
     trigger: {

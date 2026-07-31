@@ -6,6 +6,9 @@ import {
   getPeriodStarts,
 } from './cycleMath';
 import { getCycleContextForDate } from './cyclePhase';
+import { countHardDaysInRange, countLoggedDaysInRange } from './cycleStats';
+import type { FlowerSpeciesId } from '../constants/flowerSpecies';
+import { getSpecies } from '../constants/flowerSpecies';
 
 const FRIEND_PHASE_LABELS: Record<CyclePhaseId, string> = {
   menstruelle: 'Graine — repos',
@@ -21,6 +24,10 @@ export type CycleCloseSummary = {
   phaseAtClose: CyclePhaseId;
   lines: [string, string, string];
   companionLine: string;
+  flowerName?: string;
+  speciesId?: FlowerSpeciesId;
+  loggedDays?: number;
+  hardDays?: number;
 };
 
 const CLOSE_LINES = [
@@ -28,6 +35,11 @@ const CLOSE_LINES = [
   'Tu as traversé ce mois : la plante repart avec toi.',
   'Clôture douce. Ce qui a été noté reste précieux.',
 ];
+
+export type CycleCloseExtras = {
+  flowerName?: string;
+  speciesId?: FlowerSpeciesId;
+};
 
 /**
  * Si `patch` vient d’ajouter un nouveau début de règles et qu’il y avait déjà
@@ -38,6 +50,7 @@ export function detectCycleClose(
   nextData: CycleData,
   patch: { period?: boolean },
   date: string,
+  extras?: CycleCloseExtras,
 ): CycleCloseSummary | null {
   if (patch.period !== true) return null;
   const before = getPeriodStarts(prevData);
@@ -53,13 +66,24 @@ export function detectCycleClose(
   const averageLength = computeAvgCycleLength(prevData);
   const ctx = getCycleContextForDate(prevData, date);
   const phaseAtClose = ctx?.phase ?? 'luteale';
-  const phaseLabel = getPhaseById(phaseAtClose).shortTitle.toLowerCase();
 
-  const lines: [string, string, string] = [
-    `Cycle précédent : ${previousLength} jours (début ${previousStart})`,
-    `Ta moyenne : ~${averageLength} jours`,
-    `Tu étais en ${phaseLabel} juste avant ce nouveau début`,
-  ];
+  const loggedDays = countLoggedDaysInRange(prevData, previousStart, date);
+  const hardDays = countHardDaysInRange(prevData, previousStart, date);
+  const flowerName =
+    extras?.flowerName ??
+    (extras?.speciesId ? getSpecies(extras.speciesId).name : undefined);
+
+  const line1 = `Ce cycle : ${previousLength} jours · ${loggedDays} jour${loggedDays > 1 ? 's' : ''} noté${loggedDays > 1 ? 's' : ''}`;
+  const line2 = flowerName
+    ? `Floraison : ${flowerName}${hardDays > 0 ? ` · ${hardDays} jour${hardDays > 1 ? 's' : ''} difficile${hardDays > 1 ? 's' : ''}` : ''}`
+    : hardDays > 0
+      ? `${hardDays} jour${hardDays > 1 ? 's' : ''} difficile${hardDays > 1 ? 's' : ''} · moyenne ~${averageLength} j`
+      : `Ta moyenne : ~${averageLength} jours`;
+  const line3 = flowerName
+    ? `Moyenne habituelle : ~${averageLength} jours`
+    : `Phase avant la clôture : ${getPhaseById(phaseAtClose).shortTitle.toLowerCase()}`;
+
+  const lines: [string, string, string] = [line1, line2, line3];
 
   const companionLine =
     CLOSE_LINES[Math.floor(Math.random() * CLOSE_LINES.length)]!;
@@ -71,6 +95,10 @@ export function detectCycleClose(
     phaseAtClose,
     lines,
     companionLine,
+    flowerName,
+    speciesId: extras?.speciesId,
+    loggedDays,
+    hardDays,
   };
 }
 

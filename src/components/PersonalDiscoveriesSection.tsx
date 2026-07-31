@@ -73,9 +73,9 @@ export function PersonalDiscoveriesSection({
 
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionLabel}>Tes motifs</Text>
+      <Text style={styles.sectionLabel}>Ce qui revient chez toi</Text>
       <Text style={styles.sectionHint}>
-        Observations tirées de ton historique — factuelles, jamais médicales
+        Phrases tirées de ton historique — factuelles, jamais médicales
       </Text>
 
       {!result.ready ? (
@@ -95,9 +95,15 @@ export function PersonalDiscoveriesSection({
           </Text>
         </View>
       ) : (
-        result.discoveries.map((d) => (
-          <DiscoveryCard key={d.id} discovery={d} onLearnMore={onLearnMore} />
-        ))
+        <>
+          <View style={styles.leadCard}>
+            <Text style={styles.leadLabel}>En ce moment</Text>
+            <Text style={styles.leadText}>{result.discoveries[0]!.body}</Text>
+          </View>
+          {result.discoveries.map((d) => (
+            <DiscoveryCard key={d.id} discovery={d} onLearnMore={onLearnMore} />
+          ))}
+        </>
       )}
     </View>
   );
@@ -120,6 +126,28 @@ const styles = StyleSheet.create({
     color: MUTED,
     lineHeight: 18,
     marginBottom: 12,
+  },
+  leadCard: {
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: ROSE + '14',
+    borderWidth: 1,
+    borderColor: ROSE + '44',
+    marginBottom: 12,
+  },
+  leadLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: ROSE,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  leadText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: TEXT,
+    fontWeight: '600',
   },
   card: {
     flexDirection: 'row',

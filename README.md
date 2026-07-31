@@ -54,11 +54,14 @@ npm run test:cycle # tests logiques cycle (sans Jest)
 ## Fonctionnalités principales
 
 - Suivi quotidien (règles, symptômes, humeur, sommeil…) + calendrier prédictif
-- Compagnon plante (phase, réactions, rareté, murmure au tap) + message du jour
+- Compagnon plante (phase, réactions, espèces nommées à l’ovulation, murmure au tap) + message du jour
 - **Rituel d’aube** — seuil poétique à la première ouverture du jour
-- **Boussole florale** — Graine / Pousse / Fleur / Fruit
-- **Correspondance** — écrire à la plante, elle répond
-- **Saison + herbier** — vers pressés comme des fleurs séchées
+- **Collection florale** — 8 espèces à l’ovulation, saisons du pot, fleur signature, cartes postales
+- Check-in du soir + bannière préparation règles
+- Synthèse « ce cycle en 3 lignes » à la clôture
+- Insights « ce qui revient chez toi » + comparaison douce (jours difficiles)
+- Export perso JSON/CSV + PDF médecin
+- Jour local (fuseau téléphone) documenté dans Réglages
 - Insights & motifs personnels (dont humeur × sommeil)
 - Log rapide + mode « jour difficile »
 - Notes privées par phase (historique multi-cycles)
@@ -66,7 +69,7 @@ npm run test:cycle # tests logiques cycle (sans Jest)
 - Mode doux / pause prédictions (auto si cycles très irréguliers, ou manuel)
 - Streak douce
 - Rappels locaux → ouvrent Suivi au tap
-- Export PDF médecin + partage amie (texte / image)
+- Partage amie (texte / image)
 - PIN local, onboarding, suppression de compte
 
 ### PWA (web)
@@ -91,7 +94,7 @@ Après le premier déploiement, ajoutez l'URL Vercel (`https://xxx.vercel.app/re
 App.tsx              # Point d'entrée UI principal
 src/
   components/        # Onglets et composants
-  constants/         # Thème, symptômes, vers, messages
+  constants/         # Thème, symptômes, espèces florales, messages
   lib/               # Logique cycle, auth, notifs, PDF
 supabase/migrations/ # Schéma PostgreSQL
 assets/              # Icônes et splash
