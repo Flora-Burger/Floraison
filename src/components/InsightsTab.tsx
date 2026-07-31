@@ -18,10 +18,20 @@ import {
   getCycleRegularity,
   getPeriodStarts,
 } from '../lib/cycleMath';
-import { formatNextPeriodLabel } from '../lib/cyclePredictions';
+import { formatNextPeriodRangeLabel, getNextPeriodWindow } from '../lib/cyclePredictions';
 import { PersonalDiscoveriesSection } from './PersonalDiscoveriesSection';
+import { CycleCompareSection } from './CycleCompareSection';
+import { FlowerGallerySection } from './FlowerGallerySection';
+import { CycleSummaryCard } from './CycleSummaryCard';
+import { FriendShareCardButton } from './FriendShareCard';
+import { HerbierSection } from './HerbierSection';
 import { formatPhaseHero, getPhaseById } from '../constants/cycleContent';
 import { parseDateKey, todayKey } from '../lib/dates';
+import {
+  DEFAULT_PREDICTION_PREFS,
+  shouldPausePredictions,
+  type PredictionPrefs,
+} from '../lib/predictionPrefs';
 import {
   BG,
   BG_SOFT,
@@ -39,6 +49,9 @@ import {
 type InsightsTabProps = {
   data: CycleData;
   onLearnMore?: (articleId: string) => void;
+  userId?: string;
+  predPrefs?: PredictionPrefs;
+  herbierRefreshKey?: number;
 };
 
 function phaseColor(phase: InsightPhaseId): string {
@@ -320,7 +333,15 @@ function CycleProgressBar({
   );
 }
 
-export function InsightsTab({ data, onLearnMore }: InsightsTabProps) {
+export function InsightsTab({
+  data,
+  onLearnMore,
+  userId,
+  predPrefs = DEFAULT_PREDICTION_PREFS,
+  herbierRefreshKey = 0,
+}: InsightsTabProps) {
+  const pausePredictions = shouldPausePredictions(data, predPrefs);
+
   const result = useMemo(() => computeSymptomCorrelations(data), [data]);
   const ctx = useMemo(() => getCycleContextForDate(data, todayKey()), [data]);
 
@@ -338,7 +359,8 @@ export function InsightsTab({ data, onLearnMore }: InsightsTabProps) {
   const periodDays = useMemo(() => computeAvgPeriodDays(data), [data]);
   const periodStartCount = useMemo(() => getPeriodStarts(data).length, [data]);
   const hasPredictionHistory = periodStartCount >= 2;
-  const nextPeriodLabel = useMemo(() => formatNextPeriodLabel(data, todayKey()), [data]);
+  const nextPeriodLabel = useMemo(() => formatNextPeriodRangeLabel(data, todayKey()), [data]);
+  const nextPeriodWindow = useMemo(() => getNextPeriodWindow(data, todayKey()), [data]);
   const regularity = useMemo(() => getCycleRegularity(data), [data]);
 
   return (
@@ -351,7 +373,7 @@ export function InsightsTab({ data, onLearnMore }: InsightsTabProps) {
           <Text style={styles.intro}>Tes insights</Text>
           <Text style={styles.introSub}>
             {hasInsights
-              ? `${totalPatterns} tendance${totalPatterns > 1 ? 's' : ''} repérée${totalPatterns > 1 ? 's' : ''} dans ton cycle`
+              ? `${totalPatterns} tendance${totalPatterns > 1 ? 's' : ''} repérée${totalPatterns > 1 ? 's' : ''}`
               : 'Tes patterns apparaissent au fil du suivi'}
           </Text>
         </View>
@@ -366,6 +388,8 @@ export function InsightsTab({ data, onLearnMore }: InsightsTabProps) {
           <Text style={styles.phaseCardSymptoms}>{phaseSummary.symptomsLine}</Text>
         </View>
       ) : null}
+
+      <CycleSummaryCard data={data} />
 
       {!result.ready ? (
         <View style={styles.progressCard}>
@@ -394,35 +418,73 @@ export function InsightsTab({ data, onLearnMore }: InsightsTabProps) {
 
       <View style={styles.predictionsCard}>
         <Text style={styles.predictionsTitle}>Tes prédictions</Text>
-        {nextPeriodLabel ? (
-          <Text style={styles.predictionsNext}>{nextPeriodLabel}</Text>
-        ) : null}
-        <Text style={styles.predictionsBody}>
-          {hasPredictionHistory
-            ? `Cycle ~${cycleLength} j · règles ~${periodDays} j (moyennes calculées sur ${periodStartCount} début${periodStartCount > 1 ? 's' : ''} de règles enregistré${periodStartCount > 1 ? 's' : ''})`
-            : `Cycle ${DEFAULT_CYCLE_LENGTH} j · règles ${DEFAULT_PERIOD_DAYS} j (valeurs par défaut — enregistrez 2 cycles pour personnaliser)`}
-        </Text>
-        {regularity.status === 'irregular' ? (
-          <View style={styles.regularityWarning}>
-            <Text style={styles.regularityWarningTitle}>{regularity.label}</Text>
-            <Text style={styles.regularityWarningBody}>
-              Tes cycles varient de {regularity.minGap} à {regularity.maxGap} jours. Les prédictions
-              et certains insights sont moins fiables — parle-en à un professionnel de santé si c'est
-              nouveau pour toi.
+        {pausePredictions ? (
+          <>
+            <Text style={styles.predictionsNext}>En pause pour l’instant</Text>
+            <Text style={styles.predictionsBody}>
+              Le calendrier n’anticipe plus les règles ni la fertilité. Tu peux tout réactiver dans
+              Paramètres, ou simplement noter tes règles quand elles arrivent.
             </Text>
-          </View>
-        ) : regularity.status === 'slightly_variable' ? (
-          <View style={styles.regularityNote}>
-            <Text style={styles.regularityNoteText}>
-              {regularity.label} — les prédictions restent indicatives.
+            {regularity.status === 'irregular' ? (
+              <View style={styles.regularityWarning}>
+                <Text style={styles.regularityWarningTitle}>{regularity.label}</Text>
+                <Text style={styles.regularityWarningBody}>
+                  Variation de {regularity.minGap} à {regularity.maxGap} jours — le mode doux est
+                  activé automatiquement.
+                </Text>
+              </View>
+            ) : null}
+          </>
+        ) : (
+          <>
+            {nextPeriodLabel ? (
+              <Text style={styles.predictionsNext}>{nextPeriodLabel}</Text>
+            ) : null}
+            {nextPeriodWindow?.fromHistory ? (
+              <Text style={styles.predictionsRangeHint}>
+                Fourchette basée sur tes cycles passés ({regularity.minGap}–{regularity.maxGap} j)
+              </Text>
+            ) : nextPeriodWindow ? (
+              <Text style={styles.predictionsRangeHint}>
+                Estimation indicative (±1 j) — se précise après 2–3 cycles
+              </Text>
+            ) : null}
+            <Text style={styles.predictionsBody}>
+              {hasPredictionHistory
+                ? `Cycle ~${cycleLength} j · règles ~${periodDays} j (moyennes calculées sur ${periodStartCount} début${periodStartCount > 1 ? 's' : ''} de règles enregistré${periodStartCount > 1 ? 's' : ''})`
+                : `Cycle ${DEFAULT_CYCLE_LENGTH} j · règles ${DEFAULT_PERIOD_DAYS} j (valeurs par défaut — enregistrez 2 cycles pour personnaliser)`}
             </Text>
-          </View>
-        ) : regularity.status === 'regular' ? (
-          <Text style={styles.regularityOk}>Cycles réguliers — prédictions plus fiables.</Text>
-        ) : null}
+            {regularity.status === 'irregular' ? (
+              <View style={styles.regularityWarning}>
+                <Text style={styles.regularityWarningTitle}>{regularity.label}</Text>
+                <Text style={styles.regularityWarningBody}>
+                  Tes cycles varient de {regularity.minGap} à {regularity.maxGap} jours. Les
+                  prédictions et certains insights sont moins fiables — parle-en à un professionnel
+                  de santé si c'est nouveau pour toi.
+                </Text>
+              </View>
+            ) : regularity.status === 'slightly_variable' ? (
+              <View style={styles.regularityNote}>
+                <Text style={styles.regularityNoteText}>
+                  {regularity.label} — les prédictions restent indicatives.
+                </Text>
+              </View>
+            ) : regularity.status === 'regular' ? (
+              <Text style={styles.regularityOk}>Cycles réguliers — prédictions plus fiables.</Text>
+            ) : null}
+          </>
+        )}
       </View>
 
-      <PersonalDiscoveriesSection data={data} />
+      <CycleCompareSection data={data} />
+
+      <PersonalDiscoveriesSection data={data} onLearnMore={onLearnMore} />
+
+      <FriendShareCardButton data={data} />
+
+      <HerbierSection userId={userId} refreshKey={herbierRefreshKey} />
+
+      <FlowerGallerySection userId={userId} />
 
       {!hasInsights ? (
         <View style={styles.emptyCard}>
@@ -561,6 +623,12 @@ const styles = StyleSheet.create({
   },
   predictionsTitle: { fontSize: 14, fontWeight: '700', color: TEXT, marginBottom: 6 },
   predictionsNext: { fontSize: 15, fontWeight: '600', color: ROSE_DEEP, marginBottom: 6, lineHeight: 21 },
+  predictionsRangeHint: {
+    fontSize: 12,
+    color: MUTED,
+    marginBottom: 8,
+    lineHeight: 17,
+  },
   predictionsBody: { fontSize: 13, color: MUTED, lineHeight: 19 },
   regularityWarning: {
     marginTop: 10,

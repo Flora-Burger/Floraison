@@ -1,12 +1,14 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { Sparkle } from 'phosphor-react-native';
-import type { CyclePhaseId } from '../types/cycle';
+import type { CycleData, CyclePhaseId } from '../types/cycle';
 import { usePhaseAccent } from '../context/PhaseAccentContext';
 import { useDailyMessage } from '../hooks/useDailyMessage';
+import { getPeriodOverdueDays, isPeriodDueOrLate } from '../lib/periodTiming';
 import { BG_SOFT, BORDER, MUTED, TEXT } from '../constants/theme';
 
 type DailyMessageCardProps = {
   phase: CyclePhaseId | null | undefined;
+  data: CycleData;
   userId?: string;
   date: string;
 };
@@ -16,11 +18,40 @@ const TONE_LABELS = {
   scientifique: 'À savoir',
 } as const;
 
-export function DailyMessageCard({ phase, userId, date }: DailyMessageCardProps) {
+export function DailyMessageCard({ phase, data, userId, date }: DailyMessageCardProps) {
   const { accent } = usePhaseAccent();
-  const message = useDailyMessage(phase, userId, date);
+  const periodDueOrLate = phase === 'luteale' && isPeriodDueOrLate(data, date);
+  const overdueDays = periodDueOrLate ? getPeriodOverdueDays(data, date) : 0;
+  const messageContext = periodDueOrLate ? 'late_luteal' : 'default';
+  const message = useDailyMessage(phase, userId, date, messageContext);
 
-  if (!phase || !message) return null;
+  if (!phase) {
+    return (
+      <View style={styles.card} accessibilityRole="text">
+        <View style={styles.header}>
+          <View style={[styles.iconWrap, { backgroundColor: MUTED + '22' }]}>
+            <Sparkle size={16} weight="duotone" color={MUTED} />
+          </View>
+          <View>
+            <Text style={styles.kicker}>Aujourd’hui</Text>
+            <Text style={[styles.tone, { color: MUTED }]}>Ton compagnon</Text>
+          </View>
+        </View>
+        <Text style={styles.bodyMuted}>
+          Enregistre un jour de règles pour recevoir un message adapté à ta phase.
+        </Text>
+      </View>
+    );
+  }
+
+  if (!message) return null;
+
+  const timingHint =
+    periodDueOrLate
+      ? overdueDays > 0
+        ? `Règles attendues · ${overdueDays} jour${overdueDays > 1 ? 's' : ''} de retard — encore en lutéale`
+        : 'Règles attendues aujourd’hui — encore en lutéale'
+      : null;
 
   return (
     <View
@@ -39,6 +70,11 @@ export function DailyMessageCard({ phase, userId, date }: DailyMessageCardProps)
           </Text>
         </View>
       </View>
+      {timingHint ? (
+        <Text style={[styles.timingHint, { color: accent.highlight }]}>
+          {timingHint}
+        </Text>
+      ) : null}
       <Text style={styles.body}>{message.text}</Text>
     </View>
   );
@@ -79,10 +115,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 1,
   },
+  timingHint: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+    lineHeight: 17,
+  },
   body: {
     fontSize: 15,
     lineHeight: 22,
     color: TEXT,
     fontWeight: '500',
+  },
+  bodyMuted: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: MUTED,
   },
 });

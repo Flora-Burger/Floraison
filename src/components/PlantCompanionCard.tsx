@@ -7,7 +7,7 @@ import {
   View,
 } from 'react-native';
 import type { CycleData, CyclePhaseId } from '../types/cycle';
-import { MUTED, TEXT } from '../constants/theme';
+import { MUTED, ROSE, TEXT } from '../constants/theme';
 import type { PlantReaction } from '../constants/plantReactions';
 import { todayKey } from '../lib/dates';
 import {
@@ -27,6 +27,10 @@ import {
   loadPlantGallery,
   type FlowerVariante,
 } from '../lib/plantRarity';
+import { getPeriodOverdueDays, isPeriodDueOrLate } from '../lib/periodTiming';
+import { countConsecutiveLoggedDays } from '../lib/plantReactionDetect';
+import { pickPlantWhisper } from '../lib/plantWhisper';
+import { isEmptyDayEntry } from '../lib/cycleInsights';
 import { usePhaseAccent } from '../context/PhaseAccentContext';
 import {
   PlantCompanion,
@@ -36,6 +40,7 @@ import {
 
 const TRANSITION_MS = 2500;
 const TICK_MS = 40;
+const WHISPER_MS = 7000;
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -67,6 +72,7 @@ type PlantCompanionCardProps = {
   userId?: string;
   reactionTrigger?: PlantReaction | null;
   onReactionDone?: () => void;
+  onStartPeriodSetup?: () => void;
 };
 
 export function PlantCompanionCard({
@@ -74,6 +80,7 @@ export function PlantCompanionCard({
   userId,
   reactionTrigger = null,
   onReactionDone,
+  onStartPeriodSetup,
 }: PlantCompanionCardProps) {
   const target = useMemo(() => getPlantPhaseFromData(data, todayKey()), [data]);
   const targetKey = target ? `${target.phase}:${target.progression.toFixed(3)}` : 'none';
@@ -86,8 +93,47 @@ export function PlantCompanionCard({
   const [showPreview, setShowPreview] = useState(__DEV__);
   const [variante, setVariante] = useState<FlowerVariante>('commune');
   const [showRarityBadge, setShowRarityBadge] = useState(false);
+  const [whisper, setWhisper] = useState<string | null>(null);
   const animRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const whisperTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTargetKey = useRef<string | null>(null);
+
+  const today = todayKey();
+  const periodLate = useMemo(
+    () => Boolean(target && isPeriodDueOrLate(data, today)),
+    [data, target, today],
+  );
+  const overdueDays = useMemo(
+    () => (periodLate ? getPeriodOverdueDays(data, today) : 0),
+    [periodLate, data, today],
+  );
+  const todayEntry = data[today];
+  const hardDay = Boolean(
+    todayEntry?.physical?.includes('fatigue') &&
+      todayEntry?.mood?.includes('irritable') &&
+      todayEntry?.mood?.includes('triste'),
+  );
+  const streak = useMemo(() => countConsecutiveLoggedDays(data, today), [data, today]);
+  const loggedToday = Boolean(todayEntry && !isEmptyDayEntry(todayEntry));
+
+  useEffect(() => {
+    return () => {
+      if (whisperTimerRef.current) clearTimeout(whisperTimerRef.current);
+    };
+  }, []);
+
+  const revealWhisper = useCallback(() => {
+    if (!display) return;
+    const text = pickPlantWhisper({
+      phase: display.phase,
+      dateKey: today,
+      hardDay,
+      streak: loggedToday ? streak : 0,
+    });
+    setWhisper(text);
+    if (whisperTimerRef.current) clearTimeout(whisperTimerRef.current);
+    whisperTimerRef.current = setTimeout(() => setWhisper(null), WHISPER_MS);
+  }, [display, today, hardDay, streak, loggedToday]);
 
   useEffect(() => {
     setPhase(target?.phase ?? null);
@@ -194,11 +240,26 @@ export function PlantCompanionCard({
 
   if (!target || !display) {
     return (
-      <View style={styles.card}>
-        <Text style={styles.emptyTitle}>Ton compagnon plante</Text>
-        <Text style={styles.emptyText}>
-          Enregistre un jour de règles pour voir ta plante évoluer avec ton cycle.
-        </Text>
+      <View style={styles.card} accessibilityRole="summary">
+        <View style={styles.emptyRow}>
+          <PlantCompanion phase="folliculaire" progression={0.35} size={88} variante="commune" />
+          <View style={styles.copy}>
+            <Text style={styles.emptyTitle}>Ton compagnon plante</Text>
+            <Text style={styles.emptyText}>
+              Enregistre un jour de règles pour voir ta plante évoluer avec ton cycle.
+            </Text>
+            {onStartPeriodSetup ? (
+              <Pressable
+                onPress={onStartPeriodSetup}
+                style={styles.emptyCta}
+                accessibilityRole="button"
+                accessibilityLabel="Choisir la date des dernières règles"
+              >
+                <Text style={styles.emptyCtaText}>Choisir la date</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
         {__DEV__ ? (
           <Pressable onPress={() => setShowPreview((s) => !s)} style={styles.previewToggle}>
             <Text style={styles.previewToggleText}>
@@ -212,8 +273,18 @@ export function PlantCompanionCard({
   }
 
   return (
-    <View style={[styles.card, { borderColor: accent.accent + '66' }]}>
-      <View style={styles.row}>
+    <View
+      style={[styles.card, { borderColor: accent.accent + '66' }]}
+      accessibilityRole="summary"
+      accessibilityLabel={`Compagnon plante, ${PLANT_PHASE_LABELS[display.phase as CyclePhaseId]}`}
+    >
+      <Pressable
+        style={styles.row}
+        onPress={revealWhisper}
+        accessibilityRole="button"
+        accessibilityLabel="Écouter un murmure de la plante"
+        accessibilityHint="Affiche une courte phrase du compagnon"
+      >
         <PlantCompanion
           phase={display.phase}
           progression={display.progression}
@@ -231,21 +302,54 @@ export function PlantCompanionCard({
             Progression {Math.round(display.progression * 100)} %
             {variante !== 'commune' ? ` · ${variante === 'rare' ? 'rare' : 'très rare'}` : ''}
           </Text>
+          <Text style={styles.tapHint}>Touche la plante pour un murmure</Text>
+          {hardDay ? (
+            <Text style={[styles.presence, { color: accent.accent }]}>Je suis là.</Text>
+          ) : null}
+          {periodLate ? (
+            <View style={[styles.lateChip, { borderColor: accent.accent + '55' }]}>
+              <Text style={[styles.lateChipText, { color: accent.accent }]}>
+                {overdueDays > 0
+                  ? `Règles en retard · ${overdueDays} j`
+                  : 'Règles attendues aujourd’hui'}
+              </Text>
+            </View>
+          ) : null}
         </View>
-      </View>
+      </Pressable>
 
       {showRarityBadge ? (
         <Pressable
           onPress={handleDismissBadge}
           style={[styles.badge, { borderColor: accent.highlight + '88' }]}
           accessibilityRole="button"
-          accessibilityLabel="Badge variante floraison"
+          accessibilityLabel="Badge variante floraison, toucher pour fermer"
         >
           <Text style={[styles.badgeText, { color: accent.accent }]}>
             Ta plante a fleuri différemment ce mois-ci
           </Text>
           <Text style={styles.badgeHint}>Toucher pour fermer</Text>
         </Pressable>
+      ) : null}
+
+      {whisper && !reactionTrigger?.message ? (
+        <Text
+          style={[styles.whisperText, { color: accent.accent }]}
+          accessibilityLiveRegion="polite"
+          accessibilityRole="text"
+        >
+          {whisper}
+        </Text>
+      ) : null}
+
+      {reactionTrigger?.message ? (
+        <Text
+          style={[styles.reactionText, { color: accent.accent }]}
+          accessibilityLiveRegion="polite"
+          accessibilityRole="text"
+        >
+          {reactionTrigger.message}
+        </Text>
       ) : null}
 
       {__DEV__ ? (
@@ -304,8 +408,33 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 17, fontWeight: '700', color: TEXT, marginBottom: 4 },
   meta: { fontSize: 13, color: MUTED },
+  tapHint: { fontSize: 11, color: MUTED, marginTop: 6, fontStyle: 'italic' },
+  presence: { fontSize: 13, fontWeight: '700', marginTop: 6 },
+  lateChip: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    backgroundColor: ROSE + '14',
+  },
+  lateChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: TEXT, marginBottom: 6 },
   emptyText: { fontSize: 13, color: MUTED, lineHeight: 19 },
+  emptyRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  emptyCta: {
+    alignSelf: 'flex-start',
+    marginTop: 10,
+    backgroundColor: ROSE,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  emptyCtaText: { color: '#FFFCF9', fontWeight: '700', fontSize: 13 },
   badge: {
     marginTop: 12,
     paddingVertical: 10,
@@ -316,6 +445,21 @@ const styles = StyleSheet.create({
   },
   badgeText: { fontSize: 13, fontWeight: '600', lineHeight: 18 },
   badgeHint: { fontSize: 11, color: MUTED, marginTop: 4 },
+  whisperText: {
+    marginTop: 12,
+    fontSize: 14,
+    fontWeight: '600',
+    fontStyle: 'italic',
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  reactionText: {
+    marginTop: 12,
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 20,
+    textAlign: 'center',
+  },
   previewToggle: { marginTop: 12, alignSelf: 'flex-start' },
   previewToggleText: { fontSize: 12, color: MUTED, fontWeight: '600' },
   previewBlock: { marginTop: 12 },

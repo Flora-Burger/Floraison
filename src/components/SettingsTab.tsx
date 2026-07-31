@@ -10,11 +10,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Bell, FilePdf, Lock, Shield, SignOut, Trash } from 'phosphor-react-native';
+import { Bell, FilePdf, FirstAidKit, Lock, Shield, SignOut, Trash, Compass } from 'phosphor-react-native';
 import type { CycleData } from '../types/cycle';
 import { exportMedicalReportPdf } from '../lib/exportMedicalPdf';
 import { confirmAsync } from '../lib/confirmDialog';
 import { PrivacyPolicyScreen } from './PrivacyPolicyScreen';
+import { DoctorBriefModal } from './DoctorBriefModal';
 import {
   applyNotificationPrefs,
   requestNotificationPermission,
@@ -25,6 +26,7 @@ import {
   saveNotificationPrefs,
   type NotificationPrefs,
 } from '../lib/notificationPrefs';
+import { type PredictionPrefs } from '../lib/predictionPrefs';
 import { PinSetupModal } from './PinSetupModal';
 import {
   BG_SOFT,
@@ -46,6 +48,8 @@ type SettingsTabProps = {
   onPinDisable: () => Promise<void>;
   onLogout: () => void | Promise<void>;
   onDeleteAccount: () => Promise<void>;
+  predPrefs: PredictionPrefs;
+  onPredPrefsChange: (prefs: PredictionPrefs) => void;
 };
 
 export function SettingsTab({
@@ -56,10 +60,13 @@ export function SettingsTab({
   onPinDisable,
   onLogout,
   onDeleteAccount,
+  predPrefs,
+  onPredPrefsChange,
 }: SettingsTabProps) {
   const [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [doctorOpen, setDoctorOpen] = useState(false);
   const [pinModalOpen, setPinModalOpen] = useState(false);
   const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIFICATION_PREFS);
   const [notifLoading, setNotifLoading] = useState(true);
@@ -196,8 +203,34 @@ export function SettingsTab({
               <View style={styles.settingText}>
                 <Text style={styles.settingTitle}>Rappel quotidien</Text>
                 <Text style={styles.settingDesc}>
-                  Chaque jour à {notifPrefs.dailyHour}h — « Comment tu te sens aujourd'hui ? »
+                  Vers {notifPrefs.dailyHour}h si tu n’as rien noté — « Ta plante t’attend… »
                 </Text>
+                {notifPrefs.dailyEnabled ? (
+                  <View style={styles.chipRow}>
+                    {[19, 20, 21, 22].map((h) => (
+                      <TouchableOpacity
+                        key={h}
+                        style={[
+                          styles.prefChip,
+                          notifPrefs.dailyHour === h && styles.prefChipOn,
+                        ]}
+                        onPress={() => void updateNotifPrefs({ ...notifPrefs, dailyHour: h })}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: notifPrefs.dailyHour === h }}
+                        accessibilityLabel={`Rappel à ${h} heures`}
+                      >
+                        <Text
+                          style={[
+                            styles.prefChipText,
+                            notifPrefs.dailyHour === h && styles.prefChipTextOn,
+                          ]}
+                        >
+                          {h}h
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : null}
               </View>
               {notifLoading ? (
                 <ActivityIndicator color={ROSE} />
@@ -207,6 +240,7 @@ export function SettingsTab({
                   onValueChange={(v) => void handleDailyToggle(v)}
                   trackColor={{ false: BORDER, true: ROSE }}
                   thumbColor="#FFFCF9"
+                  accessibilityLabel="Activer le rappel quotidien"
                 />
               )}
             </View>
@@ -217,8 +251,37 @@ export function SettingsTab({
               <View style={styles.settingText}>
                 <Text style={styles.settingTitle}>Avant tes règles</Text>
                 <Text style={styles.settingDesc}>
-                  {notifPrefs.periodDaysBefore} jours avant la date prévue
+                  {notifPrefs.periodDaysBefore} jour
+                  {notifPrefs.periodDaysBefore > 1 ? 's' : ''} avant la date prévue
                 </Text>
+                {notifPrefs.periodEnabled ? (
+                  <View style={styles.chipRow}>
+                    {[1, 2, 3].map((d) => (
+                      <TouchableOpacity
+                        key={d}
+                        style={[
+                          styles.prefChip,
+                          notifPrefs.periodDaysBefore === d && styles.prefChipOn,
+                        ]}
+                        onPress={() =>
+                          void updateNotifPrefs({ ...notifPrefs, periodDaysBefore: d })
+                        }
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: notifPrefs.periodDaysBefore === d }}
+                        accessibilityLabel={`${d} jour${d > 1 ? 's' : ''} avant`}
+                      >
+                        <Text
+                          style={[
+                            styles.prefChipText,
+                            notifPrefs.periodDaysBefore === d && styles.prefChipTextOn,
+                          ]}
+                        >
+                          {d} j
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : null}
               </View>
               {notifLoading ? (
                 <ActivityIndicator color={ROSE} />
@@ -228,11 +291,35 @@ export function SettingsTab({
                   onValueChange={(v) => void handlePeriodToggle(v)}
                   trackColor={{ false: BORDER, true: ROSE }}
                   thumbColor="#FFFCF9"
+                  accessibilityLabel="Activer le rappel avant les règles"
                 />
               )}
             </View>
           </View>
         ) : null}
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Cycle</Text>
+          <View style={styles.settingCard}>
+            <View style={[styles.iconWrap, { backgroundColor: SAGE_LIGHT + '55' }]}>
+              <Compass size={ICON_SIZES.header} weight="duotone" color={ROSE_DEEP} />
+            </View>
+            <View style={styles.settingText}>
+              <Text style={styles.settingTitle}>Mettre les prédictions en pause</Text>
+              <Text style={styles.settingDesc}>
+                Voyage, stress, cycle irrégulier… le calendrier n’affiche plus les jours prévus.
+                (Les cycles très irréguliers activent déjà un mode doux automatique.)
+              </Text>
+            </View>
+            <Switch
+              value={predPrefs.pausePredictions}
+              onValueChange={(v) => onPredPrefsChange({ pausePredictions: v })}
+              trackColor={{ false: BORDER, true: ROSE }}
+              thumbColor="#FFFCF9"
+              accessibilityLabel="Mettre les prédictions en pause"
+            />
+          </View>
+        </View>
 
         <View style={styles.settingCard}>
           <View style={[styles.iconWrap, { backgroundColor: SAGE_LIGHT + '55' }]}>
@@ -251,14 +338,35 @@ export function SettingsTab({
             onValueChange={handlePinToggle}
             trackColor={{ false: BORDER, true: ROSE }}
             thumbColor="#FFFCF9"
+            accessibilityLabel="Activer le code PIN au démarrage"
           />
         </View>
+
+        <TouchableOpacity
+          style={styles.actionCard}
+          onPress={() => setDoctorOpen(true)}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Ouvrir le résumé pour mon médecin"
+        >
+          <View style={[styles.iconWrap, { backgroundColor: ROSE + '22' }]}>
+            <FirstAidKit size={ICON_SIZES.header} weight="duotone" color={ROSE_DEEP} />
+          </View>
+          <View style={styles.actionText}>
+            <Text style={styles.actionTitle}>Pour mon médecin</Text>
+            <Text style={styles.actionDesc}>
+              Résumé en 3 lignes + export PDF de ton suivi
+            </Text>
+          </View>
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.actionCard}
           onPress={handleExport}
           disabled={exporting}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Exporter le rapport PDF"
         >
           <View style={[styles.iconWrap, { backgroundColor: ROSE + '22' }]}>
             {exporting ? (
@@ -279,6 +387,8 @@ export function SettingsTab({
           style={styles.actionCard}
           onPress={() => setPrivacyOpen(true)}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Politique de confidentialité"
         >
           <View style={[styles.iconWrap, { backgroundColor: SAGE_LIGHT + '55' }]}>
             <Shield size={ICON_SIZES.header} weight="fill" color={ROSE_DEEP} />
@@ -296,6 +406,8 @@ export function SettingsTab({
           onPress={handleDeleteAccount}
           disabled={deleting || !userEmail}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Supprimer mon compte et mes données"
         >
           <View style={[styles.iconWrap, { backgroundColor: ROSE + '18' }]}>
             {deleting ? (
@@ -316,6 +428,8 @@ export function SettingsTab({
           style={[styles.actionCard, styles.logoutCard]}
           onPress={handleLogout}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Déconnexion"
         >
           <View style={[styles.iconWrap, { backgroundColor: BG_SOFT }]}>
             <SignOut size={ICON_SIZES.header} weight="regular" color={MUTED} />
@@ -338,6 +452,16 @@ export function SettingsTab({
         onComplete={(pin) => void onPinEnable(pin)}
       />
       <PrivacyPolicyScreen visible={privacyOpen} onClose={() => setPrivacyOpen(false)} />
+      <DoctorBriefModal
+        visible={doctorOpen}
+        data={data}
+        onClose={() => setDoctorOpen(false)}
+        onExportPdf={() => {
+          setDoctorOpen(false);
+          void handleExport();
+        }}
+        exporting={exporting}
+      />
     </>
   );
 }
@@ -387,6 +511,26 @@ const styles = StyleSheet.create({
   settingText: { flex: 1 },
   settingTitle: { fontSize: 16, fontWeight: '700', color: TEXT, marginBottom: 4 },
   settingDesc: { fontSize: 13, color: MUTED, lineHeight: 19 },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  prefChip: {
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: BG_SOFT,
+  },
+  prefChipOn: {
+    backgroundColor: ROSE,
+    borderColor: ROSE,
+  },
+  prefChipText: { fontSize: 12, fontWeight: '700', color: TEXT },
+  prefChipTextOn: { color: '#FFFCF9' },
   actionCard: {
     marginHorizontal: 16,
     marginBottom: 12,

@@ -16,6 +16,9 @@ import {
 } from './cycleMath';
 import { getCycleContextForDate } from './cyclePhase';
 import { formatNextPeriodLabel } from './cyclePredictions';
+import { getCycleThreeLineSummary } from './cycleSummary';
+import { computeReliabilityScore } from './cycleCompare';
+import { computePersonalDiscoveries } from './personalDiscoveries';
 
 const FLOW_RANK: Record<Flow, number> = {
   leger: 1,
@@ -334,6 +337,9 @@ export function buildMedicalReportHtml(data: CycleData, userEmail?: string): str
   const lastDate = dates[dates.length - 1];
   const loggedDays = dates.filter((d) => !isEmptyDayEntry(data[d])).length;
   const { symptomInsights } = computeSymptomCorrelations(data);
+  const threeLine = getCycleThreeLineSummary(data);
+  const reliability = computeReliabilityScore(data);
+  const discoveries = computePersonalDiscoveries(data);
 
   const summaryItems = buildCycleSummaryItems(
     data,
@@ -342,6 +348,36 @@ export function buildMedicalReportHtml(data: CycleData, userEmail?: string): str
     lastDate,
     loggedDays,
   );
+
+  const threeLineHtml = threeLine
+    ? `<h2>Résumé en 3 lignes</h2>
+  <div class="summary">
+    <p>${escapeHtml(threeLine.line1)}</p>
+    <p>${escapeHtml(threeLine.line2)}</p>
+    <p>${escapeHtml(threeLine.line3)}</p>
+  </div>`
+    : '';
+
+  const reliabilityHtml = `<h2>Fiabilité du suivi</h2>
+  <div class="summary">
+    <p><strong>${escapeHtml(reliability.label)}</strong> — score ${reliability.score}/100</p>
+    <p>${escapeHtml(reliability.detail)}</p>
+  </div>`;
+
+  const discoveriesHtml =
+    discoveries.ready && discoveries.discoveries.length > 0
+      ? `<h2>Motifs personnels</h2>
+  <p class="section-hint">Observations factuelles tirées de l'historique (non médicales).</p>
+  <div class="summary">
+    ${discoveries.discoveries
+      .slice(0, 5)
+      .map(
+        (d) =>
+          `<p><strong>${escapeHtml(d.title)}</strong><br/>${escapeHtml(d.body)}</p>`,
+      )
+      .join('')}
+  </div>`
+      : '';
 
   return `<!DOCTYPE html>
 <html lang="fr">
@@ -449,6 +485,10 @@ export function buildMedicalReportHtml(data: CycleData, userEmail?: string): str
   <div class="summary">
     ${summaryItems.map((item) => `<p>${item}</p>`).join('')}
   </div>
+
+  ${threeLineHtml}
+  ${reliabilityHtml}
+  ${discoveriesHtml}
 
   <h2>Historique des règles</h2>
   <p class="section-hint">Dates de début et fin, durée, intensité maximale du flux et longueur du cycle jusqu'aux règles suivantes.</p>

@@ -30,23 +30,40 @@ import { PrivacyPolicyScreen } from './src/components/PrivacyPolicyScreen';
 import { PasswordResetScreen } from './src/components/PasswordResetScreen';
 import { PlantCompanionCard } from './src/components/PlantCompanionCard';
 import { DailyMessageCard } from './src/components/DailyMessageCard';
+import { OnboardingScreen, type OnboardingResult } from './src/components/OnboardingScreen';
+import { FirstPeriodBanner } from './src/components/FirstPeriodBanner';
+import { QuickLogBar } from './src/components/QuickLogBar';
+import { SecondCycleNudge } from './src/components/SecondCycleNudge';
+import { BloomCompass } from './src/components/BloomCompass';
+import { PhaseNotesCard } from './src/components/PhaseNotesCard';
+import { PlantCorrespondenceCard } from './src/components/PlantCorrespondenceCard';
+import { CycleCloseRitualModal } from './src/components/CycleCloseRitualModal';
+import { DawnRitualModal } from './src/components/DawnRitualModal';
+import { SoftStreakBanner } from './src/components/SoftStreakBanner';
+import { SoftPredictionsBanner } from './src/components/SoftPredictionsBanner';
+import { CycleSeasonVerse } from './src/components/CycleSeasonVerse';
 import { PhaseAccentProvider, usePhaseAccent } from './src/context/PhaseAccentContext';
 import type { PlantReaction } from './src/constants/plantReactions';
-import { clearPlantCompanionState } from './src/lib/plantCompanionStorage';
 import {
-  clearPlantReactionFlags,
   detectPlantReaction,
   notePlantAppOpen,
 } from './src/lib/plantReactionDetect';
-import { clearPlantGallery } from './src/lib/plantRarity';
-import { clearLastDailyMessage } from './src/lib/dailyMessageStorage';
+import { detectCycleClose, type CycleCloseSummary } from './src/lib/cycleClose';
 import { getPlantPhaseFromData } from './src/lib/plantPhase';
+import {
+  hasCompletedOnboarding,
+  setOnboardingCompleted,
+} from './src/lib/onboardingStorage';
+import {
+  hasSeenSecondCycleNudge,
+  markSecondCycleNudgeSeen,
+} from './src/lib/secondCycleNudgeStorage';
+import { pullCompanionState, pushCompanionState } from './src/lib/companionSync';
 import { getEmailConfirmRedirectUri, getPasswordResetRedirectUri } from './src/lib/authRedirect';
-import { deleteUserAccount } from './src/lib/accountDeletion';
+import { deleteUserAccount, clearLocalUserData } from './src/lib/accountDeletion';
 import { alertAsync } from './src/lib/confirmDialog';
 import { createSerialQueue } from './src/lib/serialQueue';
 import {
-  clearCachedCycleData,
   loadCachedCycleData,
   saveCachedCycleData,
 } from './src/lib/cycleDataCache';
@@ -98,7 +115,15 @@ import {
   migrateCycleData,
   toggleMulti,
 } from './src/lib/dayEntry';
-import { syncAllReminders } from './src/lib/notifications';
+import { enableDefaultReminders, syncAllReminders, subscribeNotificationNavigation } from './src/lib/notifications';
+import {
+  DEFAULT_PREDICTION_PREFS,
+  loadPredictionPrefs,
+  savePredictionPrefs,
+  shouldPausePredictions,
+  type PredictionPrefs,
+} from './src/lib/predictionPrefs';
+import { hasSeenDawnRitual, markDawnRitualSeen } from './src/lib/creativeStorage';
 import { isEmptyDayEntry } from './src/lib/cycleInsights';
 import { getStoredPin, removeStoredPin, setStoredPin as persistPin } from './src/lib/pinStorage';
 import type {
@@ -148,7 +173,7 @@ const supabase =
       })
     : null;
 
-type AppPhase = 'loading' | 'pin' | 'auth' | 'reset-password' | 'main';
+type AppPhase = 'loading' | 'pin' | 'auth' | 'reset-password' | 'onboarding' | 'main';
 
 type AuthMode = 'login' | 'signup';
 
@@ -243,7 +268,7 @@ function TrackingCalendarDay({
   );
 }
 
-function periodDayStyle(flow: Flow | undefined, predicted: boolean) {
+function periodDayStyle(flow: Flow | undefined, predicted: boolean, overdue = false) {
   const bg = predicted
     ? PERIOD_FLOW.predicted
     : flow
@@ -254,11 +279,17 @@ function periodDayStyle(flow: Flow | undefined, predicted: boolean) {
       container: {
         backgroundColor: bg,
         borderRadius: CALENDAR_DAY_RADIUS,
-        ...(predicted ? { borderWidth: 1, borderColor: ROSE + '44' } : {}),
+        ...(predicted
+          ? {
+              borderWidth: overdue ? 2 : 1,
+              borderColor: overdue ? ROSE_DEEP : ROSE + '44',
+              borderStyle: overdue ? ('dashed' as const) : ('solid' as const),
+            }
+          : {}),
       },
       text: {
         color: predicted || flow === 'leger' ? TEXT : '#FFFCF9',
-        fontWeight: '600' as const,
+        fontWeight: overdue ? ('800' as const) : ('600' as const),
       },
     },
   };
@@ -291,10 +322,16 @@ function ovulationDayStyle() {
   };
 }
 
-function buildMarkedDates(data: CycleData, selected: string) {
+function buildMarkedDates(
+  data: CycleData,
+  selected: string,
+  options?: { pausePredictions?: boolean },
+) {
   const marked: Record<string, object> = {};
   const cycleLength = computeAvgCycleLength(data);
   const periodDays = computeAvgPeriodDays(data);
+  const today = todayKey();
+  const pausePredictions = options?.pausePredictions === true;
 
   for (const [date, entry] of Object.entries(data)) {
     if (entry.period) {
@@ -303,13 +340,15 @@ function buildMarkedDates(data: CycleData, selected: string) {
   }
 
   const lastStart = findLastPeriodStart(data);
-  if (lastStart) {
+  if (lastStart && !pausePredictions) {
     for (let cycle = 0; cycle <= 3; cycle++) {
       const cycleStart = addDays(lastStart, cycle * cycleLength);
       for (let d = 0; d < periodDays; d++) {
         const date = addDays(cycleStart, d);
         if (!data[date]?.period) {
-          marked[date] = periodDayStyle(undefined, true);
+          const expectedNextStart = addDays(lastStart, cycleLength);
+          const overdue = date <= today && date >= expectedNextStart;
+          marked[date] = periodDayStyle(undefined, true, overdue);
         }
       }
       const ovulation = computeOvulationDate(cycleStart, cycleLength);
@@ -969,6 +1008,10 @@ function SuiviTab({
   userId,
   plantReaction,
   onPlantReactionDone,
+  onStartPeriodSetup,
+  predPrefs,
+  onPredPrefsChange,
+  onHerbierPress,
 }: {
   data: CycleData;
   selectedDate: string;
@@ -977,11 +1020,20 @@ function SuiviTab({
   userId?: string;
   plantReaction?: PlantReaction | null;
   onPlantReactionDone?: () => void;
+  onStartPeriodSetup?: () => void;
+  predPrefs: PredictionPrefs;
+  onPredPrefsChange: (prefs: PredictionPrefs) => void;
+  onHerbierPress?: () => void;
 }) {
-  const markedDates = useMemo(() => buildMarkedDates(data, selectedDate), [data, selectedDate]);
+  const pausePredictions = shouldPausePredictions(data, predPrefs);
+  const markedDates = useMemo(
+    () => buildMarkedDates(data, selectedDate, { pausePredictions }),
+    [data, selectedDate, pausePredictions],
+  );
   const cycleLength = useMemo(() => computeAvgCycleLength(data), [data]);
   const periodDays = useMemo(() => computeAvgPeriodDays(data), [data]);
   const hasHistory = getPeriodStarts(data).length >= 2;
+  const hasAnyPeriod = getPeriodStarts(data).length >= 1;
   const { accent } = usePhaseAccent();
 
   const entry = data[selectedDate] ?? {};
@@ -1010,17 +1062,40 @@ function SuiviTab({
 
   return (
     <ScrollView style={styles.tabScroll} contentContainerStyle={styles.tabContent}>
+      {!hasAnyPeriod && onStartPeriodSetup ? (
+        <FirstPeriodBanner onStartOnboarding={onStartPeriodSetup} />
+      ) : null}
       <PlantCompanionCard
         data={data}
         userId={userId}
         reactionTrigger={plantReaction}
         onReactionDone={onPlantReactionDone}
+        onStartPeriodSetup={onStartPeriodSetup}
       />
       <DailyMessageCard
         phase={plantPhase?.phase}
+        data={data}
         userId={userId}
         date={todayKey()}
       />
+      <SoftStreakBanner data={data} />
+      <SoftPredictionsBanner
+        data={data}
+        prefs={predPrefs}
+        onResume={() => onPredPrefsChange({ pausePredictions: false })}
+      />
+      <CycleSeasonVerse
+        data={data}
+        phase={plantPhase?.phase}
+        userId={userId}
+        onPressed={onHerbierPress}
+      />
+      <BloomCompass data={data} />
+      <QuickLogBar
+        entry={entry}
+        onChange={(patch) => onUpdateDay(selectedDate, patch)}
+      />
+      <PlantCorrespondenceCard data={data} userId={userId} />
       <View style={styles.calendarCard}>
         <Calendar
           current={selectedDate}
@@ -1056,25 +1131,48 @@ function SuiviTab({
         />
       </View>
       <View style={styles.legend}>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: PERIOD_FLOW.predicted, borderWidth: 1, borderColor: ROSE + '55' }]} />
-          <Text style={styles.legendText}>Prévu</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: FERTILITY + '88' }]} />
-          <Text style={styles.legendText}>Fertilité</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: OVULATION_BG, borderWidth: 2, borderColor: OVULATION_RING }]} />
-          <Text style={styles.legendText}>Ovulation</Text>
-        </View>
+        {!pausePredictions ? (
+          <>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: PERIOD_FLOW.predicted, borderWidth: 1, borderColor: ROSE + '55' }]} />
+              <Text style={styles.legendText}>Prévu</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View
+                style={[
+                  styles.legendDot,
+                  {
+                    backgroundColor: PERIOD_FLOW.predicted,
+                    borderWidth: 2,
+                    borderColor: ROSE_DEEP,
+                    borderStyle: 'dashed',
+                  },
+                ]}
+              />
+              <Text style={styles.legendText}>En retard</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: FERTILITY + '88' }]} />
+              <Text style={styles.legendText}>Fertilité</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: OVULATION_BG, borderWidth: 2, borderColor: OVULATION_RING }]} />
+              <Text style={styles.legendText}>Ovulation</Text>
+            </View>
+          </>
+        ) : (
+          <Text style={styles.legendText}>Prédictions en pause — seuls tes logs apparaissent</Text>
+        )}
       </View>
       <CalendarTrackingLegend />
       <Text style={styles.cycleHint}>
-        {hasHistory
-          ? `Prédictions : cycle ~${cycleLength} j · règles ~${periodDays} j`
-          : `Prédictions : cycle ${DEFAULT_CYCLE_LENGTH} j · règles ${DEFAULT_PERIOD_DAYS} j (par défaut — saisissez 2 cycles pour personnaliser)`}
+        {pausePredictions
+          ? 'Prédictions en pause — note tes règles quand elles arrivent'
+          : hasHistory
+            ? `Prédictions : cycle ~${cycleLength} j · règles ~${periodDays} j`
+            : `Prédictions : cycle ${DEFAULT_CYCLE_LENGTH} j · règles ${DEFAULT_PERIOD_DAYS} j (par défaut — saisissez 2 cycles pour personnaliser)`}
       </Text>
+      <PhaseNotesCard data={data} userId={userId} />
       <DayForm
         date={selectedDate}
         entry={entry}
@@ -1107,22 +1205,116 @@ function AppRoot() {
   /** true seulement après un load serveur réussi — empêche d'écraser la base avec {}. */
   const [dataHydrated, setDataHydrated] = useState(false);
   const [plantReaction, setPlantReaction] = useState<PlantReaction | null>(null);
+  const [showSecondCycleNudge, setShowSecondCycleNudge] = useState(false);
+  const [cycleCloseSummary, setCycleCloseSummary] = useState<CycleCloseSummary | null>(null);
+  const [predPrefs, setPredPrefs] = useState<PredictionPrefs>(DEFAULT_PREDICTION_PREFS);
+  const [showDawnRitual, setShowDawnRitual] = useState(false);
+  const [herbierRefreshKey, setHerbierRefreshKey] = useState(0);
   const persistQueue = useRef(createSerialQueue());
   const syncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingServerSync = useRef<CycleData | null>(null);
   const sessionUserIdRef = useRef<string | null>(null);
   const reactionQueueRef = useRef<PlantReaction[]>([]);
   const reactionPlayingRef = useRef(false);
+  const prevPeriodStartCountRef = useRef(0);
+  const pendingNotifNavRef = useRef(false);
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+
+  const openSuiviLogToday = useCallback(() => {
+    setActiveTab('suivi');
+    setSelectedDate(todayKey());
+  }, []);
+
+  useEffect(() => {
+    return subscribeNotificationNavigation(() => {
+      if (phaseRef.current === 'main') {
+        openSuiviLogToday();
+      } else {
+        pendingNotifNavRef.current = true;
+      }
+    });
+  }, [openSuiviLogToday]);
+
+  useEffect(() => {
+    if (phase !== 'main' || !pendingNotifNavRef.current) return;
+    pendingNotifNavRef.current = false;
+    openSuiviLogToday();
+  }, [phase, openSuiviLogToday]);
 
   useEffect(() => {
     sessionUserIdRef.current = session?.user?.id ?? null;
   }, [session]);
 
   useEffect(() => {
+    void loadPredictionPrefs().then(setPredPrefs);
+  }, []);
+
+  useEffect(() => {
+    if (phase !== 'main') return;
+    const userId = session?.user?.id;
+    if (!userId) return;
+    let cancelled = false;
+    void hasSeenDawnRitual(userId).then((seen) => {
+      if (!cancelled && !seen) setShowDawnRitual(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, session?.user?.id]);
+
+  const handlePredPrefsChange = useCallback((next: PredictionPrefs) => {
+    setPredPrefs(next);
+    void savePredictionPrefs(next);
+  }, []);
+
+  const handleDawnDismiss = useCallback(() => {
+    setShowDawnRitual(false);
+    const userId = sessionUserIdRef.current;
+    if (userId) void markDawnRitualSeen(userId);
+  }, []);
+
+  const plantPhaseForDawn = useMemo(
+    () => getPlantPhaseFromData(cycleData, todayKey())?.phase ?? null,
+    [cycleData],
+  );
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('quicklog') !== '1') return;
+      setActiveTab('suivi');
+      setSelectedDate(todayKey());
+      params.delete('quicklog');
+      const next = params.toString();
+      const url = `${window.location.pathname}${next ? `?${next}` : ''}${window.location.hash}`;
+      window.history.replaceState({}, '', url);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
     const userId = session?.user?.id;
     if (!userId || !dataHydrated) return;
     void notePlantAppOpen(userId);
+    if (supabase) {
+      void pullCompanionState(supabase, userId).catch(() => {});
+    }
   }, [session?.user?.id, dataHydrated]);
+
+  useEffect(() => {
+    if (!dataHydrated) return;
+    const count = getPeriodStarts(cycleData).length;
+    const prev = prevPeriodStartCountRef.current;
+    prevPeriodStartCountRef.current = count;
+    if (prev === 1 && count >= 2) {
+      void hasSeenSecondCycleNudge().then((seen) => {
+        if (!seen) setShowSecondCycleNudge(true);
+      });
+    }
+  }, [cycleData, dataHydrated]);
 
   const enqueuePlantReaction = useCallback((reaction: PlantReaction) => {
     if (reactionPlayingRef.current) {
@@ -1144,6 +1336,11 @@ function AppRoot() {
   }, []);
 
   const enterMainApp = useCallback(async () => {
+    const done = await hasCompletedOnboarding();
+    if (!done) {
+      setPhase('onboarding');
+      return;
+    }
     setPhase('main');
   }, []);
 
@@ -1340,6 +1537,9 @@ function AppRoot() {
         void persistQueue.current(async () => {
           try {
             await saveCycleData(userId, toSave);
+            if (supabase) {
+              await pushCompanionState(supabase, userId).catch(() => {});
+            }
             setSyncError('');
           } catch (e: unknown) {
             const msg =
@@ -1395,6 +1595,11 @@ function AppRoot() {
         }
         persistData(next);
 
+        const closeSummary = detectCycleClose(prev, next, patch, date);
+        if (closeSummary) {
+          queueMicrotask(() => setCycleCloseSummary(closeSummary));
+        }
+
         const userId = sessionUserIdRef.current;
         if (userId && !isEmptyDayEntry(merged)) {
           void detectPlantReaction({
@@ -1416,17 +1621,38 @@ function AppRoot() {
     [persistData, dataHydrated, enqueuePlantReaction],
   );
 
+  const handleOnboardingComplete = useCallback(
+    async (result?: OnboardingResult) => {
+      await setOnboardingCompleted();
+      if (result?.periodStart) {
+        const date = result.periodStart;
+        setCycleData((prev) => {
+          const current = prev[date] ?? {};
+          const merged = applyDayPatch(current, { period: true });
+          const next = { ...prev, [date]: merged };
+          if (dataHydrated) {
+            persistData(next);
+          }
+          void enableDefaultReminders(next).catch(() => {});
+          return next;
+        });
+        setSelectedDate(date);
+      }
+      setPhase('main');
+      setActiveTab('suivi');
+    },
+    [dataHydrated, persistData],
+  );
+
+  const handleStartPeriodSetup = useCallback(() => {
+    setPhase('onboarding');
+  }, []);
+
   const handleLogout = useCallback(async () => {
     await flushPendingServerSync();
     const userId = sessionUserIdRef.current;
     if (supabase) await supabase.auth.signOut({ scope: 'local' });
-    if (userId) {
-      await clearCachedCycleData(userId);
-      await clearPlantCompanionState(userId);
-      await clearPlantGallery(userId);
-      await clearPlantReactionFlags(userId);
-      await clearLastDailyMessage(userId);
-    }
+    await clearLocalUserData(userId ?? undefined);
     setSession(null);
     setCycleData({});
     setDataHydrated(false);
@@ -1443,11 +1669,6 @@ function AppRoot() {
       await alertAsync('Suppression', result.message);
       return;
     }
-    await clearCachedCycleData(userId);
-    await clearPlantCompanionState(userId);
-    await clearPlantGallery(userId);
-    await clearPlantReactionFlags(userId);
-    await clearLastDailyMessage(userId);
     setSession(null);
     setCycleData({});
     setDataHydrated(false);
@@ -1526,9 +1747,30 @@ function AppRoot() {
     );
   }
 
+  if (phase === 'onboarding') {
+    return <OnboardingScreen onComplete={handleOnboardingComplete} />;
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
+      <SecondCycleNudge
+        visible={showSecondCycleNudge}
+        onDismiss={() => {
+          setShowSecondCycleNudge(false);
+          void markSecondCycleNudgeSeen();
+        }}
+      />
+      <CycleCloseRitualModal
+        visible={cycleCloseSummary !== null}
+        summary={cycleCloseSummary}
+        onDismiss={() => setCycleCloseSummary(null)}
+      />
+      <DawnRitualModal
+        visible={showDawnRitual}
+        phase={plantPhaseForDawn}
+        onDismiss={handleDawnDismiss}
+      />
       <View style={styles.topBar}>
         <Text style={styles.appTitle}>Floraison</Text>
       </View>
@@ -1548,11 +1790,25 @@ function AppRoot() {
             userId={session?.user?.id}
             plantReaction={plantReaction}
             onPlantReactionDone={handlePlantReactionDone}
+            onStartPeriodSetup={handleStartPeriodSetup}
+            predPrefs={predPrefs}
+            onPredPrefsChange={handlePredPrefsChange}
+            onHerbierPress={() => setHerbierRefreshKey((k) => k + 1)}
           />
         ) : activeTab === 'insights' ? (
-          <InsightsTab data={cycleData} onLearnMore={handleLearnMore} />
+          <InsightsTab
+            data={cycleData}
+            onLearnMore={handleLearnMore}
+            userId={session?.user?.id}
+            predPrefs={predPrefs}
+            herbierRefreshKey={herbierRefreshKey}
+          />
         ) : activeTab === 'corps' ? (
-          <CorpsTab data={cycleData} highlightTopicId={highlightTopicId} />
+          <CorpsTab
+            data={cycleData}
+            highlightTopicId={highlightTopicId}
+            onHighlightConsumed={() => setHighlightTopicId(null)}
+          />
         ) : (
           <SettingsTab
             data={cycleData}
@@ -1562,6 +1818,8 @@ function AppRoot() {
             onPinDisable={handlePinDisable}
             onLogout={handleLogout}
             onDeleteAccount={handleDeleteAccount}
+            predPrefs={predPrefs}
+            onPredPrefsChange={handlePredPrefsChange}
           />
         )}
       </View>
@@ -1591,6 +1849,9 @@ function MainTabBar({
               isActive && { borderTopColor: accent.accent, borderTopWidth: 2 },
             ]}
             onPress={() => onChangeTab(tab.id)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: isActive }}
+            accessibilityLabel={tab.label}
           >
             <TabIcon icon={tab.Icon} active={isActive} activeColor={accent.accent} />
             <Text

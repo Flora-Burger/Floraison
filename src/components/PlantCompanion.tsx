@@ -5,7 +5,7 @@ import type { CyclePhaseId } from '../types/cycle';
 import { PHASE_ACCENTS } from '../constants/phaseAccent';
 import type { PlantReaction } from '../constants/plantReactions';
 import type { FlowerVariante } from '../lib/plantRarity';
-import { BG_SOFT, BORDER } from '../constants/theme';
+import { BORDER } from '../constants/theme';
 
 export type PlantCompanionProps = {
   phase: CyclePhaseId;
@@ -251,14 +251,18 @@ export function PlantCompanion({
         ? PETAL_ANGLES_RARE
         : PETAL_ANGLES_COMMUNE;
 
+  const phaseTint = PHASE_ACCENTS[phase].highlight + '33';
+
   return (
     <Animated.View
       style={[
         styles.wrap,
-        { width: size, height: size },
+        { width: size, height: size, backgroundColor: phaseTint },
         { transform: [{ translateY: bounceY }, { scale: bounceScale }] },
       ]}
-      accessibilityLabel={`Plante ${phase}${variante !== 'commune' ? `, variante ${variante}` : ''}`}
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={`Compagnon plante, phase ${phase}${variante !== 'commune' ? `, variante ${variante}` : ''}, progression ${Math.round(progression * 100)} pourcent`}
     >
       <Svg width={size} height={size} viewBox={`0 0 ${vb} ${vb}`}>
         {/* Pot — proportions un peu plus larges / stables */}
@@ -396,7 +400,6 @@ const styles = StyleSheet.create({
   wrap: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: BG_SOFT,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: BORDER,

@@ -66,6 +66,22 @@ export const DAILY_PHASE_MESSAGES: Record<CyclePhaseId, PhaseDailyMessages> = {
   },
 };
 
+/** Lutéale prolongée : règles attendues mais pas encore loggées. */
+export const LATE_LUTEAL_MESSAGES: PhaseDailyMessages = {
+  narratif: [
+    'Les règles ne sont pas là encore — on reste en lutéale, ton corps peut prendre son temps.',
+    'Pas de flux aujourd’hui ? Fin de cycle, pas urgence. Je suis encore là.',
+    'Un peu de retard, c’est fréquent. On ne force rien, on observe.',
+    'La transition peut tarder quelques jours — ça ne remet pas tout le cycle en question.',
+  ],
+  scientifique: [
+    'Un délai de quelques jours avant les règles est courant ; le corps peut prolonger la phase lutéale avant la chute hormonale.',
+    'Sans début de flux, tu restes en fin de lutéale : progestérone encore dominante jusqu’au détachement de l’endomètre.',
+    'La date « prévue » est une moyenne — un cycle peut dépasser sa durée habituelle sans que ce soit rare.',
+    'Le stress, le sommeil ou la variation naturelle peuvent décaler l’arrivée des règles de quelques jours.',
+  ],
+};
+
 export function buildDailyMessageId(
   phase: CyclePhaseId,
   tone: DailyMessageTone,

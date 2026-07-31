@@ -1,9 +1,10 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
   CalendarBlank,
   ChartLine,
   Heart,
   Leaf,
+  MoonStars,
   type IconProps,
 } from 'phosphor-react-native';
 import {
@@ -21,9 +22,16 @@ const ICON_MAP: Record<DiscoveryIcon, ComponentType<IconProps>> = {
   cycle: Leaf,
   mood: Heart,
   calendar: CalendarBlank,
+  sleep: MoonStars,
 };
 
-function DiscoveryCard({ discovery }: { discovery: PersonalDiscovery }) {
+function DiscoveryCard({
+  discovery,
+  onLearnMore,
+}: {
+  discovery: PersonalDiscovery;
+  onLearnMore?: (articleId: string) => void;
+}) {
   const Icon = ICON_MAP[discovery.icon];
   return (
     <View
@@ -37,6 +45,16 @@ function DiscoveryCard({ discovery }: { discovery: PersonalDiscovery }) {
       <View style={styles.body}>
         <Text style={styles.title}>{discovery.title}</Text>
         <Text style={styles.text}>{discovery.body}</Text>
+        {discovery.articleId && onLearnMore ? (
+          <TouchableOpacity
+            style={styles.learnMoreBtn}
+            onPress={() => onLearnMore(discovery.articleId!)}
+            accessibilityRole="button"
+            accessibilityLabel="En savoir plus dans Corps"
+          >
+            <Text style={styles.learnMoreText}>En savoir plus →</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </View>
   );
@@ -44,9 +62,13 @@ function DiscoveryCard({ discovery }: { discovery: PersonalDiscovery }) {
 
 type PersonalDiscoveriesSectionProps = {
   data: CycleData;
+  onLearnMore?: (articleId: string) => void;
 };
 
-export function PersonalDiscoveriesSection({ data }: PersonalDiscoveriesSectionProps) {
+export function PersonalDiscoveriesSection({
+  data,
+  onLearnMore,
+}: PersonalDiscoveriesSectionProps) {
   const result = useMemo(() => computePersonalDiscoveries(data), [data]);
 
   return (
@@ -73,7 +95,9 @@ export function PersonalDiscoveriesSection({ data }: PersonalDiscoveriesSectionP
           </Text>
         </View>
       ) : (
-        result.discoveries.map((d) => <DiscoveryCard key={d.id} discovery={d} />)
+        result.discoveries.map((d) => (
+          <DiscoveryCard key={d.id} discovery={d} onLearnMore={onLearnMore} />
+        ))
       )}
     </View>
   );
@@ -125,6 +149,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     color: MUTED,
+  },
+  learnMoreBtn: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+  },
+  learnMoreText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: ROSE,
   },
   emptyCard: {
     padding: 16,

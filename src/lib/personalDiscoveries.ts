@@ -1,13 +1,13 @@
-import type { CycleData, CyclePhaseId, MoodTag } from '../types/cycle';
+import type { CycleData, CyclePhaseId, DayEntry, MoodTag, SleepQuality } from '../types/cycle';
 import { MOOD_OPTIONS } from '../constants/symptoms';
 import { getPhaseById } from '../constants/cycleContent';
 import {
   computeSymptomCorrelations,
   isEmptyDayEntry,
-  MIN_DISPLAY_RATE,
   MIN_LOGGED_DAYS_IN_PHASE,
   MIN_PHASE_RATE_MARGIN,
 } from './cycleInsights';
+import { getArticleIdForInsight } from './insightArticles';
 import { todayKey } from './dates';
 import {
   computeAvgCycleLength,
@@ -21,9 +21,10 @@ export type DiscoveryKind =
   | 'symptom_phase_pattern'
   | 'cycle_length_tendency'
   | 'mood_phase_correlation'
+  | 'mood_sleep_correlation'
   | 'period_start_weekday';
 
-export type DiscoveryIcon = 'symptom' | 'cycle' | 'mood' | 'calendar';
+export type DiscoveryIcon = 'symptom' | 'cycle' | 'mood' | 'calendar' | 'sleep';
 
 export type PersonalDiscovery = {
   id: string;
@@ -32,9 +33,14 @@ export type PersonalDiscovery = {
   body: string;
   icon: DiscoveryIcon;
   detectedAt: string;
+  /** Id article Corps (phase ou topic) pour « En savoir plus ». */
+  articleId?: string;
 };
 
 export const MIN_CYCLES_FOR_DISCOVERIES = 3;
+/** Seuil plus strict que les insights généraux — évite les motifs fragiles. */
+const DISCOVERY_MIN_RATE = 0.7;
+const DISCOVERY_MIN_WEEKDAY_COUNT = 3;
 
 const WEEKDAY_LABELS = [
   'dimanche',
@@ -60,11 +66,17 @@ function formatPercent(rate: number): string {
 function detectSymptomPatterns(data: CycleData, cycleCount: number): PersonalDiscovery[] {
   const { symptomInsights } = computeSymptomCorrelations(data);
   const now = todayKey();
-  return symptomInsights.slice(0, 2).map((insight) => {
+  return symptomInsights
+    .filter((insight) => insight.rate >= DISCOVERY_MIN_RATE && insight.confidence === 'confirmed')
+    .slice(0, 2)
+    .map((insight) => {
     const phaseLabel =
       insight.phase === 'avant_regles'
         ? 'les 7 jours avant tes règles'
         : PHASE_LABELS[insight.phase as CyclePhaseId] ?? insight.phase;
+    const symptomArticle = getArticleIdForInsight(insight);
+    const phaseArticle =
+      insight.phase !== 'avant_regles' ? (insight.phase as CyclePhaseId) : 'luteale';
     return {
       id: `discovery:symptom:${insight.id}`,
       kind: 'symptom_phase_pattern' as const,
@@ -72,6 +84,7 @@ function detectSymptomPatterns(data: CycleData, cycleCount: number): PersonalDis
       body: `Dans tes ${cycleCount} derniers cycles, tu as noté « ${insight.label.toLowerCase()} » sur ${formatPercent(insight.rate)} des jours renseignés ${phaseLabel === 'les 7 jours avant tes règles' ? phaseLabel : `en ${phaseLabel}`}.`,
       icon: 'symptom' as const,
       detectedAt: now,
+      articleId: symptomArticle ?? phaseArticle,
     };
   });
 }
@@ -96,6 +109,7 @@ function detectCycleLengthTendency(data: CycleData): PersonalDiscovery | null {
       body: `Sur tes ${count} derniers cycles, la durée va de ${min} à ${max} jours (moyenne ${avg}). L’écart reste modéré.`,
       icon: 'cycle',
       detectedAt: todayKey(),
+      articleId: 'folliculaire',
     };
   }
 
@@ -109,6 +123,7 @@ function detectCycleLengthTendency(data: CycleData): PersonalDiscovery | null {
       body: `Sur tes ${count} derniers cycles, la durée va de ${min} à ${max} jours (moyenne ${avg}). La variation est plus marquée qu’une moyenne « très régulière ».`,
       icon: 'cycle',
       detectedAt: todayKey(),
+      articleId: 'luteale',
     };
   }
 
@@ -167,7 +182,7 @@ function detectMoodCorrelations(data: CycleData): PersonalDiscovery[] {
         ]),
       ) as Record<CyclePhaseId, number>;
       const other = maxOtherPhaseRate(phaseRates, phase);
-      if (rate >= MIN_DISPLAY_RATE && rate >= other + MIN_PHASE_RATE_MARGIN && rate > bestRate) {
+      if (rate >= DISCOVERY_MIN_RATE && rate >= other + MIN_PHASE_RATE_MARGIN && rate > bestRate) {
         bestPhase = phase;
         bestRate = rate;
       }
@@ -182,6 +197,7 @@ function detectMoodCorrelations(data: CycleData): PersonalDiscovery[] {
       body: `Le tag « ${label.toLowerCase()} » apparaît sur ${formatPercent(bestRate)} de tes jours ${PHASE_LABELS[bestPhase]} renseignés, plus souvent qu’en moyenne sur les autres phases.`,
       icon: 'mood',
       detectedAt: todayKey(),
+      articleId: bestPhase,
     });
   }
 
@@ -200,7 +216,7 @@ function detectPeriodWeekday(data: CycleData): PersonalDiscovery | null {
   }
 
   const maxCount = Math.max(...weekdayCounts);
-  if (maxCount < 2) return null;
+  if (maxCount < DISCOVERY_MIN_WEEKDAY_COUNT) return null;
 
   const topDays = weekdayCounts
     .map((count, day) => ({ count, day }))
@@ -217,6 +233,68 @@ function detectPeriodWeekday(data: CycleData): PersonalDiscovery | null {
     body: `Sur tes ${recent.length} derniers débuts de cycle enregistrés, ${maxCount} commencent un ${label}.`,
     icon: 'calendar',
     detectedAt: todayKey(),
+    articleId: 'menstruelle',
+  };
+}
+
+const POOR_SLEEP: SleepQuality[] = [
+  'endormissement_difficile',
+  'reveils_frequents',
+  'insomnie',
+  'besoin_plus_sommeil',
+];
+const LOW_MOOD: MoodTag[] = ['irritable', 'anxieuse', 'triste', 'stressee'];
+const MIN_SLEEP_MOOD_DAYS = 5;
+
+function hasPoorSleep(entry: DayEntry): boolean {
+  return Boolean(entry.sleep?.some((s) => POOR_SLEEP.includes(s)));
+}
+
+function hasGoodSleepOnly(entry: DayEntry): boolean {
+  if (!entry.sleep?.length) return false;
+  return entry.sleep.includes('bonne_nuit') && !hasPoorSleep(entry);
+}
+
+function hasLowMood(entry: DayEntry): boolean {
+  return Boolean(entry.mood?.some((m) => LOW_MOOD.includes(m)));
+}
+
+/** Humeur basse plus fréquente les jours de sommeil difficile. */
+function detectMoodSleepCorrelation(data: CycleData): PersonalDiscovery | null {
+  let poorDays = 0;
+  let poorLow = 0;
+  let goodDays = 0;
+  let goodLow = 0;
+
+  for (const date of Object.keys(data)) {
+    const entry = data[date];
+    if (!entry || isEmptyDayEntry(entry)) continue;
+    if (!entry.sleep?.length || !entry.mood?.length) continue;
+
+    if (hasPoorSleep(entry)) {
+      poorDays++;
+      if (hasLowMood(entry)) poorLow++;
+    } else if (hasGoodSleepOnly(entry)) {
+      goodDays++;
+      if (hasLowMood(entry)) goodLow++;
+    }
+  }
+
+  if (poorDays < MIN_SLEEP_MOOD_DAYS || goodDays < MIN_SLEEP_MOOD_DAYS) return null;
+
+  const poorRate = poorLow / poorDays;
+  const goodRate = goodLow / goodDays;
+  if (poorRate < DISCOVERY_MIN_RATE) return null;
+  if (poorRate < goodRate + MIN_PHASE_RATE_MARGIN) return null;
+
+  return {
+    id: 'discovery:mood-sleep',
+    kind: 'mood_sleep_correlation',
+    title: 'Humeur et sommeil liés',
+    body: `Sur tes jours avec sommeil difficile, une humeur plus lourde (irritable, triste, anxieuse…) apparaît ${formatPercent(poorRate)} du temps, contre ${formatPercent(goodRate)} après une bonne nuit.`,
+    icon: 'sleep',
+    detectedAt: todayKey(),
+    articleId: 'luteale',
   };
 }
 
@@ -235,18 +313,20 @@ export function computePersonalDiscoveries(data: CycleData): PersonalDiscoveries
   }
 
   const discoveries: PersonalDiscovery[] = [];
-  const seenKinds = new Set<DiscoveryKind>();
 
   const cycleDiscovery = detectCycleLengthTendency(data);
   if (cycleDiscovery) {
     discoveries.push(cycleDiscovery);
-    seenKinds.add('cycle_length_tendency');
   }
 
   const weekdayDiscovery = detectPeriodWeekday(data);
   if (weekdayDiscovery) {
     discoveries.push(weekdayDiscovery);
-    seenKinds.add('period_start_weekday');
+  }
+
+  const moodSleep = detectMoodSleepCorrelation(data);
+  if (moodSleep) {
+    discoveries.push(moodSleep);
   }
 
   for (const d of detectMoodCorrelations(data)) {

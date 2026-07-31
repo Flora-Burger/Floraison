@@ -3,14 +3,35 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { removeStoredPin } from './pinStorage';
 import { DEFAULT_NOTIFICATION_PREFS, saveNotificationPrefs } from './notificationPrefs';
 import { cancelAllReminders } from './notifications';
+import { clearPlantCompanionState } from './plantCompanionStorage';
+import { clearPlantGallery } from './plantRarity';
+import { clearPlantReactionFlags } from './plantReactionDetect';
+import { clearLastDailyMessage } from './dailyMessageStorage';
+import { clearSecondCycleNudge } from './secondCycleNudgeStorage';
+import { clearCachedCycleData } from './cycleDataCache';
+import { clearPhaseNotes } from './phaseNotesStorage';
+import { clearPredictionPrefs } from './predictionPrefs';
+import { clearCreativeLocal } from './creativeStorage';
 
 const ONBOARDING_KEY = 'floraison_onboarding_done';
 
-export async function clearLocalUserData(): Promise<void> {
+/** Nettoie tout le stockage local lié à un compte (ou à la session). */
+export async function clearLocalUserData(userId?: string): Promise<void> {
   await removeStoredPin();
   await saveNotificationPrefs(DEFAULT_NOTIFICATION_PREFS);
   await cancelAllReminders();
+  await clearSecondCycleNudge();
   await AsyncStorage.multiRemove([ONBOARDING_KEY, 'floraison_notification_prefs']);
+  if (userId) {
+    await clearCachedCycleData(userId);
+    await clearPlantCompanionState(userId);
+    await clearPlantGallery(userId);
+    await clearPlantReactionFlags(userId);
+    await clearLastDailyMessage(userId);
+    await clearPhaseNotes(userId);
+    await clearCreativeLocal(userId);
+  }
+  await clearPredictionPrefs();
 }
 
 /**
@@ -19,7 +40,7 @@ export async function clearLocalUserData(): Promise<void> {
  */
 export async function deleteUserAccount(
   client: SupabaseClient,
-  _userId: string,
+  userId: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const { error: rpcError } = await client.rpc('delete_own_account');
   if (rpcError) {
@@ -29,7 +50,7 @@ export async function deleteUserAccount(
     };
   }
 
-  await clearLocalUserData();
+  await clearLocalUserData(userId);
   await client.auth.signOut();
   return { ok: true };
 }

@@ -3,12 +3,20 @@ import * as Notifications from 'expo-notifications';
 import type { CycleData } from '../types/cycle';
 import { addDays, todayKey } from './dates';
 import { getNextPeriodStartDate } from './cyclePredictions';
+import { isEmptyDayEntry } from './cycleInsights';
 import {
   DEFAULT_NOTIFICATION_PREFS,
   loadNotificationPrefs,
   saveNotificationPrefs,
   type NotificationPrefs,
 } from './notificationPrefs';
+import {
+  parseNotificationNavData,
+  type NotificationNavData,
+} from './notificationNav';
+
+export type { NotificationNavData };
+export { parseNotificationNavData };
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -23,6 +31,31 @@ Notifications.setNotificationHandler({
 const DAILY_ID = 'floraison-daily-reminder';
 const PERIOD_ID = 'floraison-period-reminder';
 
+/**
+ * Écoute les taps sur notifs (froid + chaud).
+ * Appelle `onNavigate` puis efface la dernière réponse pour éviter les rejoues.
+ */
+export function subscribeNotificationNavigation(
+  onNavigate: (nav: NotificationNavData) => void,
+): () => void {
+  if (Platform.OS === 'web') return () => {};
+
+  const handle = (response: Notifications.NotificationResponse | null) => {
+    if (!response) return;
+    const nav = parseNotificationNavData(response.notification.request.content.data);
+    if (!nav) return;
+    onNavigate(nav);
+    void Notifications.clearLastNotificationResponseAsync().catch(() => {});
+  };
+
+  void Notifications.getLastNotificationResponseAsync()
+    .then(handle)
+    .catch(() => {});
+
+  const sub = Notifications.addNotificationResponseReceivedListener(handle);
+  return () => sub.remove();
+}
+
 export async function requestNotificationPermission(): Promise<boolean> {
   if (Platform.OS === 'web') return false;
   const { status: existing } = await Notifications.getPermissionsAsync();
@@ -36,19 +69,37 @@ async function cancelScheduled(id: string): Promise<void> {
   await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
 }
 
-export async function scheduleDailyReminder(hour: number): Promise<void> {
+/**
+ * Rappel doux : une occurrence DATE (ce soir ou demain),
+ * annulée / replanifiée si le jour a déjà un log.
+ */
+export async function scheduleDailyReminder(
+  hour: number,
+  data: CycleData,
+): Promise<void> {
   if (Platform.OS === 'web') return;
   await cancelScheduled(DAILY_ID);
+
+  const today = todayKey();
+  const loggedToday = Boolean(data[today] && !isEmptyDayEntry(data[today]!));
+
+  const target = new Date();
+  target.setHours(hour, 0, 0, 0);
+  if (loggedToday || target.getTime() <= Date.now()) {
+    target.setDate(target.getDate() + 1);
+    target.setHours(hour, 0, 0, 0);
+  }
+
   await Notifications.scheduleNotificationAsync({
     identifier: DAILY_ID,
     content: {
       title: 'Floraison',
-      body: "Comment tu te sens aujourd'hui ? Note ton suivi en un instant.",
+      body: 'Ta plante t’attend si tu as une minute — un petit log suffit.',
+      data: { screen: 'suivi', action: 'log' } satisfies NotificationNavData,
     },
     trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DAILY,
-      hour,
-      minute: 0,
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: target,
     },
   });
 }
@@ -73,8 +124,9 @@ export async function schedulePeriodReminder(
       title: 'Floraison',
       body:
         daysBefore === 1
-          ? 'Tes règles pourraient commencer demain — pense à les noter si elles arrivent.'
-          : `Tes règles pourraient commencer dans ${daysBefore} jours — prépare ton suivi.`,
+          ? 'Tes règles pourraient commencer demain — note-les si elles arrivent.'
+          : `Tes règles pourraient commencer dans ${daysBefore} jours — à toi de voir.`,
+      data: { screen: 'suivi', action: 'period' } satisfies NotificationNavData,
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -102,7 +154,7 @@ export async function applyNotificationPrefs(
 
   if (prefs.dailyEnabled) {
     const ok = await requestNotificationPermission();
-    if (ok) await scheduleDailyReminder(prefs.dailyHour);
+    if (ok) await scheduleDailyReminder(prefs.dailyHour, data);
     else await cancelScheduled(DAILY_ID);
   } else {
     await cancelScheduled(DAILY_ID);

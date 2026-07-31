@@ -19,6 +19,7 @@
     "react-native-calendars": "^1.1314.0",
     "react-native-svg": "15.12.1",
     "react-native-url-polyfill": "^3.0.0",
+    "react-native-view-shot": "4.0.3",
     "react-native-web": "^0.21.0"
   },
   "devDependencies": {
@@ -33,7 +34,8 @@
     "ios": "expo start --ios --lan",
     "web": "expo start --web",
     "build:web": "node scripts/generate-icons.mjs && expo export -p web && node scripts/patch-pwa.mjs",
-    "build": "npm run build:web"
+    "build": "npm run build:web",
+    "test:cycle": "npx --yes tsx scripts/test-cycle-logic.ts"
   },
   "engines": {
     "node": ">=20"

@@ -38,6 +38,21 @@ const manifest = {
       purpose: 'any',
     },
   ],
+  shortcuts: [
+    {
+      name: 'Log rapide',
+      short_name: 'Log',
+      description: 'Ouvrir le suivi pour noter rapidement',
+      url: '/?quicklog=1',
+      icons: [
+        {
+          src: '/icon-192.png',
+          sizes: '192x192',
+          type: 'image/png',
+        },
+      ],
+    },
+  ],
 };
 
 fs.writeFileSync(
