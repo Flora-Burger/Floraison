@@ -11,7 +11,7 @@ import {
   View,
   type LayoutChangeEvent,
 } from 'react-native';
-import { BookOpen } from 'phosphor-react-native';
+import { CaretDown, CaretUp } from 'phosphor-react-native';
 import type { CycleData } from '../types/cycle';
 import {
   CYCLE_PHASES,
@@ -30,7 +30,6 @@ import {
   BORDER,
   CARD,
   MUTED,
-  ROSE,
   ROSE_DEEP,
   TEXT,
 } from '../constants/theme';
@@ -69,66 +68,51 @@ function BodyArticleCard({
       <TouchableOpacity
         style={[
           styles.articleCard,
-          {
-            borderColor: isHighlighted ? accent : accent + '44',
-            borderWidth: isHighlighted ? 2 : 1,
-          },
+          isHighlighted && { borderColor: accent },
+          isOpen && styles.articleCardOpen,
         ]}
         onPress={onToggle}
-        activeOpacity={0.85}
+        activeOpacity={0.88}
         accessibilityRole="button"
         accessibilityState={{ expanded: isOpen }}
         accessibilityLabel={`${article.title}${isOpen ? ', ouvert' : ''}`}
       >
-        <View style={[styles.articleCardTint, { backgroundColor: accent + '14' }]} />
+        <View style={[styles.articleRail, { backgroundColor: accent }]} />
         <View style={styles.articleCardInner}>
           <View style={styles.articleTopRow}>
-            <View style={[styles.articleIconWrap, { backgroundColor: accent + '28' }]}>
-              <Text style={styles.articleEmoji}>{article.emoji}</Text>
-            </View>
             <View style={styles.articleTitleBlock}>
               <Text style={styles.articleTitle}>{article.title}</Text>
               {isActive && activeLabel ? (
-                <View
-                  style={[
-                    styles.activeChip,
-                    { backgroundColor: accent + '22', borderColor: accent + '66' },
-                  ]}
-                >
-                  <Text style={[styles.activeChipText, { color: accent }]}>{activeLabel}</Text>
-                </View>
+                <Text style={[styles.metaLine, { color: accent }]}>{activeLabel}</Text>
               ) : null}
               {isHighlighted ? (
-                <View
-                  style={[
-                    styles.activeChip,
-                    { backgroundColor: accent + '22', borderColor: accent + '66', marginTop: 4 },
-                  ]}
-                >
-                  <Text style={[styles.activeChipText, { color: accent }]}>Depuis Insights</Text>
-                </View>
+                <Text style={[styles.metaLine, { color: accent }]}>Depuis Insights</Text>
               ) : null}
             </View>
-            <Text style={styles.chevron}>{isOpen ? '▲' : '▼'}</Text>
+            {isOpen ? (
+              <CaretUp size={16} color={MUTED} weight="bold" />
+            ) : (
+              <CaretDown size={16} color={MUTED} weight="bold" />
+            )}
           </View>
 
           {isOpen ? (
             <View style={styles.articleBody}>
-              <Text style={styles.sectionLabel}>Le mécanisme en détail</Text>
-              <Text style={styles.sectionText}>{article.mechanism}</Text>
+              <Text style={styles.detailLabel}>Mécanisme</Text>
+              <Text style={styles.detailText}>{article.mechanism}</Text>
 
-              <Text style={styles.sectionLabel}>La touche ludique</Text>
-              <Text style={styles.sectionText}>{article.funFact}</Text>
+              <Text style={styles.detailLabel}>À retenir</Text>
+              <Text style={styles.detailText}>{article.funFact}</Text>
 
-              <Text style={styles.sectionLabel}>L'étude scientifique</Text>
-              <Text style={styles.sectionText}>{article.studyLabel}</Text>
+              <Text style={styles.detailLabel}>Source</Text>
+              <Text style={styles.detailText}>{article.studyLabel}</Text>
               <TouchableOpacity
                 onPress={() => Linking.openURL(article.studyUrl)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 accessibilityRole="link"
                 accessibilityLabel={`Voir l'étude : ${article.title}`}
               >
-                <Text style={styles.studyLink}>Voir l'étude →</Text>
+                <Text style={[styles.studyLink, { color: accent }]}>Lire l’étude</Text>
               </TouchableOpacity>
             </View>
           ) : null}
@@ -169,6 +153,7 @@ export function CorpsTab({
   const ctx = useMemo(() => getCycleContextForDate(data, todayKey()), [data]);
   const hero = ctx ? formatPhaseHero(getPhaseById(ctx.phase)) : null;
   const { accent } = usePhaseAccent();
+  const phase = ctx ? getPhaseById(ctx.phase) : null;
 
   const toggle = (id: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -182,31 +167,33 @@ export function CorpsTab({
       contentContainerStyle={styles.tabContent}
     >
       <View style={styles.header}>
-        <View style={styles.headerIconWrap}>
-          <BookOpen size={22} weight="fill" color={accent.accent} />
-        </View>
-        <View>
-          <Text style={styles.intro}>Comprendre mon corps</Text>
-          <Text style={styles.introSub}>Cycle, hormones et symptômes expliqués</Text>
-        </View>
+        <Text style={styles.kicker}>Corps</Text>
+        <Text style={styles.intro}>Ce qui se passe maintenant</Text>
+        <Text style={styles.introSub}>
+          Phase en cours, puis les articles pour comprendre mécanismes et symptômes.
+        </Text>
       </View>
 
-      {hero && ctx ? (
-        <View style={[styles.phaseCard, { borderColor: accent.accent + '99' }]}>
-          <View
-            style={[styles.phaseCardGlow, { backgroundColor: accent.accent + '18' }]}
-          />
-          <Text style={styles.phaseEmoji}>{getPhaseById(ctx.phase).emoji}</Text>
-          <Text style={[styles.phaseCardTitle, { color: accent.accent }]}>Aujourd'hui</Text>
-          <Text style={styles.phaseCardHeadline}>{hero.headline}</Text>
-          <Text style={styles.phaseCardSymptoms}>{hero.symptomsLine}</Text>
-          <CycleWheel data={data} />
+      {hero && ctx && phase ? (
+        <View style={styles.hero}>
+          <View style={[styles.heroBar, { backgroundColor: accent.accent }]} />
+          <View style={styles.heroCopy}>
+            <Text style={[styles.heroPhase, { color: accent.accent }]}>
+              {phase.shortTitle}
+            </Text>
+            <Text style={styles.heroDay}>Jour {ctx.cycleDay}</Text>
+            <Text style={styles.heroHeadline}>{hero.headline}</Text>
+            <Text style={styles.heroSymptoms}>{hero.symptomsLine}</Text>
+          </View>
+          <View style={styles.wheelWrap}>
+            <CycleWheel data={data} size={220} />
+          </View>
         </View>
       ) : (
         <View style={styles.emptyHero}>
-          <Text style={styles.emptyHeroTitle}>Phase inconnue</Text>
+          <Text style={styles.emptyHeroTitle}>Pas encore de phase</Text>
           <Text style={styles.emptyHeroBody}>
-            Enregistre au moins un jour de règles dans l'onglet Suivi pour voir ta phase actuelle.
+            Note un jour de règles dans Suivi — Corps affichera ta phase et la roue du cycle.
           </Text>
         </View>
       )}
@@ -217,19 +204,19 @@ export function CorpsTab({
           yById.current.__phases = e.nativeEvent.layout.y;
         }}
       >
-        <Text style={styles.sectionTitle}>Les 4 phases du cycle</Text>
-        <Text style={styles.sectionHint}>Ce qui se passe dans ton corps à chaque étape</Text>
-        {CYCLE_PHASES.map((phase) => (
+        <Text style={styles.sectionTitle}>Les quatre phases</Text>
+        <Text style={styles.sectionHint}>Ouvre celle qui t’intéresse</Text>
+        {CYCLE_PHASES.map((p) => (
           <BodyArticleCard
-            key={phase.id}
-            article={phase}
-            isOpen={openId === phase.id}
-            onToggle={() => toggle(phase.id)}
-            isActive={ctx?.phase === phase.id}
-            activeLabel="Phase actuelle"
-            isHighlighted={flashId === phase.id}
+            key={p.id}
+            article={p}
+            isOpen={openId === p.id}
+            onToggle={() => toggle(p.id)}
+            isActive={ctx?.phase === p.id}
+            activeLabel="En cours"
+            isHighlighted={flashId === p.id}
             onLayout={(e) => {
-              yById.current[phase.id] =
+              yById.current[p.id] =
                 (yById.current.__phases ?? 0) + e.nativeEvent.layout.y;
             }}
           />
@@ -242,8 +229,8 @@ export function CorpsTab({
           yById.current.__topics = e.nativeEvent.layout.y;
         }}
       >
-        <Text style={styles.sectionTitle}>En savoir plus</Text>
-        <Text style={styles.sectionHint}>Symptômes, mécanismes et études</Text>
+        <Text style={styles.sectionTitle}>Symptômes & mécanismes</Text>
+        <Text style={styles.sectionHint}>Textes courts, avec source</Text>
         {TOPIC_ARTICLES.map((article) => (
           <BodyArticleCard
             key={article.id}
@@ -264,116 +251,174 @@ export function CorpsTab({
 
 const styles = StyleSheet.create({
   tabScroll: { flex: 1, backgroundColor: BG },
-  tabContent: { paddingBottom: 24 },
+  tabContent: { paddingBottom: 32 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 8,
   },
-  headerIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: ROSE + '18',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: ROSE + '33',
-  },
-  intro: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: ROSE_DEEP,
-    letterSpacing: -0.3,
-  },
-  introSub: {
-    fontSize: 13,
-    color: MUTED,
-    marginTop: 2,
-    lineHeight: 18,
-  },
-  phaseCard: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    padding: 16,
-    borderRadius: 18,
-    backgroundColor: CARD,
-    borderWidth: 1.5,
-    overflow: 'hidden',
-  },
-  phaseCardGlow: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  phaseEmoji: { fontSize: 28, marginBottom: 6 },
-  phaseCardTitle: {
+  kicker: {
     fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  phaseCardHeadline: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: TEXT,
+    fontWeight: '600',
+    color: MUTED,
     marginBottom: 6,
   },
-  phaseCardSymptoms: { fontSize: 13, color: MUTED, lineHeight: 19, marginBottom: 8 },
+  intro: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: TEXT,
+    letterSpacing: -0.4,
+    lineHeight: 30,
+  },
+  introSub: {
+    fontSize: 14,
+    color: MUTED,
+    marginTop: 8,
+    lineHeight: 20,
+    maxWidth: 340,
+  },
+  hero: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    borderRadius: 18,
+    backgroundColor: CARD,
+    borderWidth: 1,
+    borderColor: BORDER,
+    overflow: 'hidden',
+  },
+  heroBar: {
+    height: 4,
+    width: '100%',
+  },
+  heroCopy: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 4,
+  },
+  heroPhase: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  heroDay: {
+    fontSize: 12,
+    color: MUTED,
+    marginTop: 2,
+    marginBottom: 8,
+  },
+  heroHeadline: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: TEXT,
+    lineHeight: 22,
+    marginBottom: 6,
+  },
+  heroSymptoms: {
+    fontSize: 13,
+    color: MUTED,
+    lineHeight: 19,
+  },
+  wheelWrap: {
+    alignItems: 'center',
+    paddingBottom: 8,
+    paddingTop: 4,
+  },
   emptyHero: {
     marginHorizontal: 16,
-    marginBottom: 12,
+    marginTop: 12,
+    marginBottom: 8,
     padding: 16,
     borderRadius: 16,
     backgroundColor: BG_SOFT,
     borderWidth: 1,
     borderColor: BORDER,
   },
-  emptyHeroTitle: { fontSize: 16, fontWeight: '700', color: TEXT, marginBottom: 6 },
-  emptyHeroBody: { fontSize: 13, color: MUTED, lineHeight: 19 },
-  section: { marginTop: 8, paddingHorizontal: 16 },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: TEXT, marginBottom: 4 },
-  sectionHint: { fontSize: 13, color: MUTED, marginBottom: 12, lineHeight: 18 },
+  emptyHeroTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: TEXT,
+    marginBottom: 6,
+  },
+  emptyHeroBody: {
+    fontSize: 13,
+    color: MUTED,
+    lineHeight: 19,
+  },
+  section: {
+    marginTop: 20,
+    paddingHorizontal: 16,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: TEXT,
+    marginBottom: 4,
+  },
+  sectionHint: {
+    fontSize: 13,
+    color: MUTED,
+    marginBottom: 12,
+    lineHeight: 18,
+  },
   articleCard: {
-    borderRadius: 16,
+    flexDirection: 'row',
+    borderRadius: 14,
     backgroundColor: CARD,
     borderWidth: 1,
-    marginBottom: 10,
+    borderColor: BORDER,
+    marginBottom: 8,
     overflow: 'hidden',
   },
-  articleCardTint: { ...StyleSheet.absoluteFillObject },
-  articleCardInner: { padding: 14 },
-  articleTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  articleIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
+  articleCardOpen: {
+    backgroundColor: BG_SOFT,
   },
-  articleEmoji: { fontSize: 20 },
+  articleRail: {
+    width: 4,
+  },
+  articleCardInner: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+  },
+  articleTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
   articleTitleBlock: { flex: 1 },
-  articleTitle: { fontSize: 15, fontWeight: '700', color: TEXT },
-  chevron: { fontSize: 11, color: MUTED },
-  activeChip: {
-    alignSelf: 'flex-start',
-    marginTop: 4,
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    borderWidth: 1,
+  articleTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: TEXT,
+    lineHeight: 20,
   },
-  activeChipText: { fontSize: 11, fontWeight: '700' },
-  articleBody: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER },
-  sectionLabel: {
+  metaLine: {
+    marginTop: 4,
     fontSize: 12,
+    fontWeight: '600',
+  },
+  articleBody: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: BORDER,
+  },
+  detailLabel: {
+    fontSize: 11,
     fontWeight: '700',
     color: ROSE_DEEP,
+    marginTop: 10,
     marginBottom: 4,
-    marginTop: 8,
+    letterSpacing: 0.3,
   },
-  sectionText: { fontSize: 13, color: TEXT, lineHeight: 20 },
-  studyLink: { fontSize: 13, fontWeight: '700', color: ROSE, marginTop: 8 },
+  detailText: {
+    fontSize: 14,
+    color: TEXT,
+    lineHeight: 21,
+  },
+  studyLink: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 10,
+  },
 });

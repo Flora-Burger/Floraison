@@ -16,7 +16,7 @@ export function FirstPeriodBanner({ onStartOnboarding }: FirstPeriodBannerProps)
       <View style={styles.copy}>
         <Text style={styles.title}>Active ton cycle</Text>
         <Text style={styles.body}>
-          Indique le début de tes dernières règles pour débloquer la plante, le message du jour et
+          Indique le début de tes dernières règles pour afficher ta phase et
           les prédictions.
         </Text>
         <TouchableOpacity

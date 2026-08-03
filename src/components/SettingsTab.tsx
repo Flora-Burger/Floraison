@@ -215,7 +215,7 @@ export function SettingsTab({
               <View style={styles.settingText}>
                 <Text style={styles.settingTitle}>Rappel quotidien</Text>
                 <Text style={styles.settingDesc}>
-                  Vers {notifPrefs.dailyHour}h si tu n’as rien noté — « Ta plante t’attend… »
+                  Vers {notifPrefs.dailyHour}h si tu n’as rien noté — rappel doux pour logger.
                 </Text>
                 {notifPrefs.dailyEnabled ? (
                   <View style={styles.chipRow}>

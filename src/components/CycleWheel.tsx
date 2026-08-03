@@ -187,9 +187,7 @@ export function CycleWheel({ data, size = 260 }: CycleWheelProps) {
           pointerEvents="none"
         >
           {isToday ? (
-            <View style={styles.todayBadge}>
-              <Text style={styles.todayBadgeText}>Aujourd'hui</Text>
-            </View>
+            <Text style={styles.todayLabel}>Aujourd’hui</Text>
           ) : null}
           <Text style={styles.centerDate} numberOfLines={2}>
             {formatDateLabel(selectedDate)}
@@ -201,27 +199,25 @@ export function CycleWheel({ data, size = 260 }: CycleWheelProps) {
           <Text style={styles.centerCountdown}>{formatPeriodCountdown(daysUntilPeriod)}</Text>
         </View>
       </View>
-      <Text style={styles.hint}>Fais glisser le point autour du cercle</Text>
+      <Text style={styles.hint}>Glisse sur le cercle pour explorer un jour</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { alignItems: 'center', paddingVertical: 8 },
+  wrap: { alignItems: 'center', paddingVertical: 4 },
   wheelBox: { position: 'relative' },
   centerOverlay: {
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  todayBadge: {
-    backgroundColor: ROSE_DEEP,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-    marginBottom: 4,
+  todayLabel: {
+    color: ROSE_DEEP,
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 2,
   },
-  todayBadgeText: { color: '#FFFCF9', fontSize: 10, fontWeight: '700' },
   centerDate: {
     fontSize: 13,
     fontWeight: '700',

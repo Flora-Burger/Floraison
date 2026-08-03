@@ -94,7 +94,7 @@ export async function scheduleDailyReminder(
     identifier: DAILY_ID,
     content: {
       title: 'Floraison',
-      body: 'Ta plante t’attend si tu as une minute — un petit log suffit.',
+      body: 'Un petit log suffit si tu as une minute.',
       data: { screen: 'suivi', action: 'log' } satisfies NotificationNavData,
     },
     trigger: {

@@ -3,33 +3,37 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { removeStoredPin } from './pinStorage';
 import { DEFAULT_NOTIFICATION_PREFS, saveNotificationPrefs } from './notificationPrefs';
 import { cancelAllReminders } from './notifications';
-import { clearPlantCompanionState } from './plantCompanionStorage';
-import { clearPlantGallery } from './plantRarity';
-import { clearPlantReactionFlags } from './plantReactionDetect';
-import { clearLastDailyMessage } from './dailyMessageStorage';
-import { clearSecondCycleNudge } from './secondCycleNudgeStorage';
 import { clearCachedCycleData } from './cycleDataCache';
-import { clearPhaseNotes } from './phaseNotesStorage';
 import { clearPredictionPrefs } from './predictionPrefs';
-import { clearCreativeLocal } from './creativeStorage';
 
 const ONBOARDING_KEY = 'floraison_onboarding_done';
 
-/** Nettoie tout le stockage local lié à un compte (ou à la session). */
+/** Nettoie le stockage local lié à un compte (ou à la session). */
 export async function clearLocalUserData(userId?: string): Promise<void> {
   await removeStoredPin();
   await saveNotificationPrefs(DEFAULT_NOTIFICATION_PREFS);
   await cancelAllReminders();
-  await clearSecondCycleNudge();
   await AsyncStorage.multiRemove([ONBOARDING_KEY, 'floraison_notification_prefs']);
   if (userId) {
     await clearCachedCycleData(userId);
-    await clearPlantCompanionState(userId);
-    await clearPlantGallery(userId);
-    await clearPlantReactionFlags(userId);
-    await clearLastDailyMessage(userId);
-    await clearPhaseNotes(userId);
-    await clearCreativeLocal(userId);
+    // Anciennes clés lore / plante (si présentes)
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const stale = keys.filter(
+        (k) =>
+          k.startsWith(`floraison_plant_`) ||
+          k.startsWith(`floraison_dawn_`) ||
+          k.startsWith(`floraison_herbier:`) ||
+          k.startsWith(`floraison_phase_notes:`) ||
+          k.startsWith(`floraison_daily_message:`) ||
+          k.startsWith(`floraison_plant_rarity:`) ||
+          k.startsWith(`floraison_plant_companion:`) ||
+          k === 'floraison_second_cycle_nudge',
+      );
+      if (stale.length) await AsyncStorage.multiRemove(stale);
+    } catch {
+      /* ignore */
+    }
   }
   await clearPredictionPrefs();
 }

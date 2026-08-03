@@ -116,7 +116,7 @@ export function QuickLogBar({
       </TouchableOpacity>
       {hardDayActive ? (
         <Text style={styles.hardDaySupport}>
-          C’est ok d’avoir un jour lourd. Ta plante reste là — un pas à la fois.
+          C’est ok d’avoir un jour lourd. Un pas à la fois.
         </Text>
       ) : null}
 

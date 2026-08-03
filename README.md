@@ -1,6 +1,6 @@
 # Floraison
 
-Application de suivi du cycle menstruel (Expo + React Native + Supabase), avec un compagnon plante qui évolue avec tes phases.
+Application de suivi du cycle menstruel (Expo + React Native + Supabase).
 
 - **Mobile** : Expo Go ou build natif (iOS / Android)
 - **Web** : déployable sur [Vercel](https://vercel.com)
@@ -28,9 +28,8 @@ Dans le **SQL Editor** de votre projet Supabase, exécutez dans l'ordre :
 1. `supabase/migrations/001_cycle_data.sql` — table `cycle_data` + RLS
 2. `supabase/migrations/002_cycle_data_grants.sql` — grants
 3. `supabase/migrations/003_account_deletion.sql` — suppression de compte (`delete_own_account`)
-4. `supabase/migrations/004_user_companion.sql` — sync compagnon (rareté / message du jour)
 
-Sans la **004**, la sync multi-appareils de la plante est un no-op (le reste de l'app fonctionne).
+La migration `004_user_companion.sql` (ancienne sync compagnon) n’est plus utilisée par l’app.
 
 ### Auth (reset mot de passe)
 
@@ -54,23 +53,14 @@ npm run test:cycle # tests logiques cycle (sans Jest)
 ## Fonctionnalités principales
 
 - Suivi quotidien (règles, symptômes, humeur, sommeil…) + calendrier prédictif
-- Compagnon plante (phase, réactions, espèces nommées à l’ovulation, murmure au tap) + message du jour
-- **Rituel d’aube** — seuil poétique à la première ouverture du jour
-- **Collection florale** — 8 espèces à l’ovulation, saisons du pot, fleur signature, cartes postales
-- Check-in du soir + bannière préparation règles
-- Synthèse « ce cycle en 3 lignes » à la clôture
-- Insights « ce qui revient chez toi » + comparaison douce (jours difficiles)
-- Export perso JSON/CSV + PDF médecin
-- Jour local (fuseau téléphone) documenté dans Réglages
-- Insights & motifs personnels (dont humeur × sommeil)
-- Log rapide + mode « jour difficile »
-- Notes privées par phase (historique multi-cycles)
-- Rituel de clôture de cycle
+- Phase du jour + log rapide (dont mode jour difficile)
+- Insights & motifs (symptômes × phases) + comparaison de cycles
 - Mode doux / pause prédictions (auto si cycles très irréguliers, ou manuel)
-- Streak douce
 - Rappels locaux → ouvrent Suivi au tap
-- Partage amie (texte / image)
+- Export PDF médecin + export perso JSON/CSV
+- Contenu Corps (phases)
 - PIN local, onboarding, suppression de compte
+- Jour local (fuseau téléphone) documenté dans Réglages
 
 ### PWA (web)
 
@@ -94,7 +84,7 @@ Après le premier déploiement, ajoutez l'URL Vercel (`https://xxx.vercel.app/re
 App.tsx              # Point d'entrée UI principal
 src/
   components/        # Onglets et composants
-  constants/         # Thème, symptômes, espèces florales, messages
+  constants/         # Thème, symptômes, contenu phases
   lib/               # Logique cycle, auth, notifs, PDF
 supabase/migrations/ # Schéma PostgreSQL
 assets/              # Icônes et splash

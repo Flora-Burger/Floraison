@@ -19,11 +19,8 @@ import {
   getPeriodStarts,
 } from '../lib/cycleMath';
 import { formatNextPeriodRangeLabel, getNextPeriodWindow } from '../lib/cyclePredictions';
-import { PersonalDiscoveriesSection } from './PersonalDiscoveriesSection';
 import { CycleCompareSection } from './CycleCompareSection';
-import { FlowerGallerySection } from './FlowerGallerySection';
 import { CycleSummaryCard } from './CycleSummaryCard';
-import { FriendShareCardButton } from './FriendShareCard';
 import { formatPhaseHero, getPhaseById } from '../constants/cycleContent';
 import { parseDateKey, todayKey } from '../lib/dates';
 import {
@@ -48,7 +45,6 @@ import {
 type InsightsTabProps = {
   data: CycleData;
   onLearnMore?: (articleId: string) => void;
-  userId?: string;
   predPrefs?: PredictionPrefs;
 };
 
@@ -334,7 +330,6 @@ function CycleProgressBar({
 export function InsightsTab({
   data,
   onLearnMore,
-  userId,
   predPrefs = DEFAULT_PREDICTION_PREFS,
 }: InsightsTabProps) {
   const pausePredictions = shouldPausePredictions(data, predPrefs);
@@ -475,15 +470,9 @@ export function InsightsTab({
 
       <CycleCompareSection data={data} />
 
-      <PersonalDiscoveriesSection data={data} onLearnMore={onLearnMore} />
-
-      <FriendShareCardButton data={data} />
-
-      <FlowerGallerySection userId={userId} />
-
       {!hasInsights ? (
         <View style={styles.emptyCard}>
-          <Text style={styles.emptyEmoji}>🌸</Text>
+          <Text style={styles.emptyEmoji}>•</Text>
           <Text style={styles.emptyTitle}>
             {result.cycleCount === 0
               ? 'Ton tableau de bord t\'attend'

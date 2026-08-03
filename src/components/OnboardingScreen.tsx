@@ -33,7 +33,7 @@ const TIP_STEPS = [
   {
     id: 'tips' as const,
     icon: Heart,
-    emoji: '🌸',
+            emoji: '•',
     title: 'Note un peu chaque jour',
     body: 'Humeur, sommeil, symptômes… Plus tu notes, plus Floraison repère tes motifs. Après quelques cycles, tes insights se précisent.',
     accent: SAGE,
@@ -105,10 +105,9 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             <View style={[styles.iconWrap, { backgroundColor: ROSE + '22' }]}>
               <Leaf size={36} weight="duotone" color={ROSE} />
             </View>
-            <Text style={styles.emoji}>🌱</Text>
             <Text style={styles.title}>Quand ont commencé tes dernières règles ?</Text>
             <Text style={styles.body}>
-              Un seul jour suffit pour activer ta plante, le message du jour et tes prédictions.
+              Un seul jour de règles suffit pour activer ta phase et tes prédictions.
             </Text>
             <View style={styles.calendarWrap}>
               <Calendar
