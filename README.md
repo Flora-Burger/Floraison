@@ -29,7 +29,9 @@ Dans le **SQL Editor** de votre projet Supabase, exécutez dans l'ordre :
 2. `supabase/migrations/002_cycle_data_grants.sql` — grants
 3. `supabase/migrations/003_account_deletion.sql` — suppression de compte (`delete_own_account`)
 
-La migration `004_user_companion.sql` (ancienne sync compagnon) n’est plus utilisée par l’app.
+4. `supabase/migrations/20260731101802_user_companion.sql` — ancienne table compagnon (plus utilisée par l’app)
+
+La sync Git Supabase attend ce préfixe de version (`20260731101802`), pas `004_…`.
 
 ### Auth (reset mot de passe)
 
