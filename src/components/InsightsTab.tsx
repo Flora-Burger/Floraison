@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Bell, ChartLine, Sparkle } from 'phosphor-react-native';
+import { Bell, ChartLine } from 'phosphor-react-native';
 import type { CycleData, CyclePhaseId, InsightPhaseId } from '../types/cycle';
 import {
   computeSymptomCorrelations,
@@ -20,8 +20,7 @@ import {
 } from '../lib/cycleMath';
 import { formatNextPeriodRangeLabel, getNextPeriodWindow } from '../lib/cyclePredictions';
 import { CycleCompareSection } from './CycleCompareSection';
-import { CycleSummaryCard } from './CycleSummaryCard';
-import { formatPhaseHero, getPhaseById } from '../constants/cycleContent';
+import { getPhaseById } from '../constants/cycleContent';
 import { parseDateKey, todayKey } from '../lib/dates';
 import {
   DEFAULT_PREDICTION_PREFS,
@@ -154,50 +153,6 @@ function formatShortDate(key: string): string {
   });
 }
 
-function HeroInsightCard({
-  insight,
-  onLearnMore,
-}: {
-  insight: SymptomInsight;
-  onLearnMore?: (articleId: string) => void;
-}) {
-  const accent = ROSE_DEEP;
-  const pct = Math.round(insight.rate * 100);
-
-  return (
-    <View style={[styles.heroCard, { borderColor: accent + '55' }]}>
-      <View style={[styles.heroGlow, { backgroundColor: accent + '20' }]} />
-      <View style={styles.heroBadgeRow}>
-        <View style={[styles.heroBadge, { backgroundColor: accent + '28' }]}>
-          <Sparkle size={12} weight="fill" color={accent} />
-          <Text style={[styles.heroBadgeText, { color: accent }]}>Ton pattern #1</Text>
-        </View>
-        {insight.confidence === 'tentative' ? (
-          <View style={styles.tentativeBadge}>
-            <Text style={styles.tentativeBadgeText}>À confirmer</Text>
-          </View>
-        ) : null}
-      </View>
-      <View style={styles.heroMain}>
-        <View style={[styles.heroIconWrap, { backgroundColor: accent + '30' }]}>
-          <ChartLine size={28} weight="duotone" color={accent} />
-        </View>
-        <View style={styles.heroTextBlock}>
-          <Text style={styles.heroLabel}>{insight.label}</Text>
-          <Text style={styles.heroPhase}>{phaseChipLabel(insight.phase)}</Text>
-        </View>
-        <Text style={[styles.heroPct, { color: accent }]}>{pct}%</Text>
-      </View>
-      <RateBar rate={insight.rate} color={accent} />
-      <Text style={styles.heroHint}>
-        Présent sur {insight.evidenceDays} jour{insight.evidenceDays > 1 ? 's' : ''} noté
-        {insight.evidenceDays > 1 ? 's' : ''} — c'est ce qui revient le plus dans ton suivi
-      </Text>
-      <LearnMoreButton insight={insight} onLearnMore={onLearnMore} />
-    </View>
-  );
-}
-
 const PHASE_SHORT: Record<CyclePhaseId, string> = {
   menstruelle: 'Règles',
   folliculaire: 'Foll.',
@@ -307,26 +262,6 @@ function UpcomingSection({ alerts }: { alerts: UpcomingAlert[] }) {
   );
 }
 
-function CycleProgressBar({
-  current,
-  total,
-}: {
-  current: number;
-  total: number;
-}) {
-  const ratio = total > 0 ? Math.min(current / total, 1) : 0;
-  return (
-    <View style={styles.cycleProgressWrap}>
-      <View style={styles.cycleProgressTrack}>
-        <View style={[styles.cycleProgressFill, { width: `${ratio * 100}%` }]} />
-      </View>
-      <Text style={styles.cycleProgressLabel}>
-        {current}/{total} cycle{total > 1 ? 's' : ''}
-      </Text>
-    </View>
-  );
-}
-
 export function InsightsTab({
   data,
   onLearnMore,
@@ -337,15 +272,8 @@ export function InsightsTab({
   const result = useMemo(() => computeSymptomCorrelations(data), [data]);
   const ctx = useMemo(() => getCycleContextForDate(data, todayKey()), [data]);
 
-  const phase = ctx ? getPhaseById(ctx.phase) : null;
-  const phaseSummary = phase ? formatPhaseHero(phase) : null;
-
   const hasInsights = result.symptomInsights.length > 0;
   const totalPatterns = result.symptomInsights.length;
-  const heroId = result.heroInsight?.id;
-  const symptomList = heroId
-    ? result.symptomInsights.filter((i) => i.id !== heroId)
-    : result.symptomInsights;
 
   const cycleLength = useMemo(() => computeAvgCycleLength(data), [data]);
   const periodDays = useMemo(() => computeAvgPeriodDays(data), [data]);
@@ -358,111 +286,43 @@ export function InsightsTab({
   return (
     <ScrollView style={styles.tabScroll} contentContainerStyle={styles.tabContent}>
       <View style={styles.header}>
-        <View style={styles.headerIconWrap}>
-          <Sparkle size={22} weight="fill" color={ROSE_DEEP} />
-        </View>
-        <View>
-          <Text style={styles.intro}>Tes insights</Text>
-          <Text style={styles.introSub}>
-            {hasInsights
-              ? `${totalPatterns} tendance${totalPatterns > 1 ? 's' : ''} repérée${totalPatterns > 1 ? 's' : ''}`
-              : 'Tes patterns apparaissent au fil du suivi'}
-          </Text>
-        </View>
+        <Text style={styles.kicker}>Insights</Text>
+        <Text style={styles.intro}>Tendances & prédictions</Text>
+        <Text style={styles.introSub}>
+          {hasInsights
+            ? `${totalPatterns} tendance${totalPatterns > 1 ? 's' : ''} sur tes cycles`
+            : 'Les motifs apparaissent après quelques cycles notés'}
+        </Text>
       </View>
 
-      {phaseSummary && phase ? (
-        <View style={[styles.phaseCard, { borderColor: phase.color + '88' }]}>
-          <View style={[styles.phaseCardGlow, { backgroundColor: phase.color + '18' }]} />
-          <Text style={styles.phaseEmoji}>{phase.emoji}</Text>
-          <Text style={styles.phaseCardTitle}>Aujourd'hui</Text>
-          <Text style={styles.phaseCardHeadline}>{phaseSummary.headline}</Text>
-          <Text style={styles.phaseCardSymptoms}>{phaseSummary.symptomsLine}</Text>
-        </View>
-      ) : null}
-
-      <CycleSummaryCard data={data} />
-
-      {!result.ready ? (
-        <View style={styles.progressCard}>
-          <Text style={styles.progressTitle}>
-            {hasInsights ? 'Premiers signaux détectés' : 'En attente de données'}
-          </Text>
-          <Text style={styles.progressBody}>
-            {hasInsights
-              ? 'Ces tendances viennent de ton premier cycle. Un second cycle les rendra plus fiables.'
-              : 'Note tes symptômes quelques jours par phase — tes insights personnalisés suivront.'}
-          </Text>
-          <CycleProgressBar
-            current={result.cycleCount}
-            total={result.minCyclesRequired}
-          />
-        </View>
-      ) : (
-        <View style={styles.confidenceCard}>
-          <Text style={styles.confidenceTitle}>Profil cycle établi</Text>
-          <Text style={styles.confidenceBody}>
-            Tes insights sont basés sur {result.cycleCount} cycle
-            {result.cycleCount > 1 ? 's' : ''} enregistré{result.cycleCount > 1 ? 's' : ''}.
-          </Text>
-        </View>
-      )}
-
       <View style={styles.predictionsCard}>
-        <Text style={styles.predictionsTitle}>Tes prédictions</Text>
+        <Text style={styles.predictionsTitle}>Prochaines règles</Text>
         {pausePredictions ? (
           <>
-            <Text style={styles.predictionsNext}>En pause pour l’instant</Text>
+            <Text style={styles.predictionsNext}>Prédictions en pause</Text>
             <Text style={styles.predictionsBody}>
-              Le calendrier n’anticipe plus les règles ni la fertilité. Tu peux tout réactiver dans
-              Paramètres, ou simplement noter tes règles quand elles arrivent.
+              Réactive-les dans Paramètres, ou note simplement tes règles quand elles arrivent.
             </Text>
-            {regularity.status === 'irregular' ? (
-              <View style={styles.regularityWarning}>
-                <Text style={styles.regularityWarningTitle}>{regularity.label}</Text>
-                <Text style={styles.regularityWarningBody}>
-                  Variation de {regularity.minGap} à {regularity.maxGap} jours — le mode doux est
-                  activé automatiquement.
-                </Text>
-              </View>
-            ) : null}
           </>
         ) : (
           <>
             {nextPeriodLabel ? (
               <Text style={styles.predictionsNext}>{nextPeriodLabel}</Text>
-            ) : null}
-            {nextPeriodWindow?.fromHistory ? (
-              <Text style={styles.predictionsRangeHint}>
-                Fourchette basée sur tes cycles passés ({regularity.minGap}–{regularity.maxGap} j)
-              </Text>
-            ) : nextPeriodWindow ? (
-              <Text style={styles.predictionsRangeHint}>
-                Estimation indicative (±1 j) — se précise après 2–3 cycles
-              </Text>
-            ) : null}
+            ) : (
+              <Text style={styles.predictionsNext}>Pas encore estimable</Text>
+            )}
             <Text style={styles.predictionsBody}>
               {hasPredictionHistory
-                ? `Cycle ~${cycleLength} j · règles ~${periodDays} j (moyennes calculées sur ${periodStartCount} début${periodStartCount > 1 ? 's' : ''} de règles enregistré${periodStartCount > 1 ? 's' : ''})`
-                : `Cycle ${DEFAULT_CYCLE_LENGTH} j · règles ${DEFAULT_PERIOD_DAYS} j (valeurs par défaut — enregistrez 2 cycles pour personnaliser)`}
+                ? `Moyennes : cycle ~${cycleLength} j · règles ~${periodDays} j`
+                : `Par défaut : cycle ${DEFAULT_CYCLE_LENGTH} j · règles ${DEFAULT_PERIOD_DAYS} j — se précise après 2 cycles`}
             </Text>
-            {regularity.status === 'irregular' ? (
-              <View style={styles.regularityWarning}>
-                <Text style={styles.regularityWarningTitle}>{regularity.label}</Text>
-                <Text style={styles.regularityWarningBody}>
-                  Tes cycles varient de {regularity.minGap} à {regularity.maxGap} jours. Les
-                  prédictions et certains insights sont moins fiables — parle-en à un professionnel
-                  de santé si c'est nouveau pour toi.
-                </Text>
-              </View>
-            ) : regularity.status === 'slightly_variable' ? (
-              <View style={styles.regularityNote}>
-                <Text style={styles.regularityNoteText}>
-                  {regularity.label} — les prédictions restent indicatives.
-                </Text>
-              </View>
-            ) : regularity.status === 'regular' ? (
-              <Text style={styles.regularityOk}>Cycles réguliers — prédictions plus fiables.</Text>
+            {nextPeriodWindow?.fromHistory ? (
+              <Text style={styles.predictionsRangeHint}>
+                Fourchette historique {regularity.minGap}–{regularity.maxGap} j
+              </Text>
+            ) : null}
+            {regularity.status === 'irregular' || regularity.status === 'slightly_variable' ? (
+              <Text style={styles.regularityNoteText}>{regularity.label}</Text>
             ) : null}
           </>
         )}
@@ -472,26 +332,17 @@ export function InsightsTab({
 
       {!hasInsights ? (
         <View style={styles.emptyCard}>
-          <Text style={styles.emptyEmoji}>•</Text>
           <Text style={styles.emptyTitle}>
-            {result.cycleCount === 0
-              ? 'Ton tableau de bord t\'attend'
-              : 'Encore un peu de patience'}
+            {result.cycleCount === 0 ? 'Pas encore de données' : 'Encore un peu tôt'}
           </Text>
           <Text style={styles.emptyBody}>
             {result.cycleCount === 0
-              ? 'Commence par noter tes règles, puis ajoute symptômes, humeur et sommeil au quotidien.'
-              : 'Les tendances apparaissent quand un symptôme revient souvent dans une phase où il a du sens (≥ 65 % des jours notés, sur au moins 2 cycles).'}
+              ? 'Note règles, symptômes et humeur dans Suivi — les tendances arriveront ici.'
+              : 'Un symptôme doit revenir souvent dans une phase (≥ 65 %, sur ≥ 2 cycles) pour apparaître.'}
           </Text>
         </View>
       ) : (
         <>
-          {result.heroInsight ? (
-            <View style={styles.heroSection}>
-              <HeroInsightCard insight={result.heroInsight} onLearnMore={onLearnMore} />
-            </View>
-          ) : null}
-
           {result.timeline.length > 0 ? (
             <CycleTimeline
               segments={result.timeline}
@@ -503,17 +354,15 @@ export function InsightsTab({
 
           <UpcomingSection alerts={result.upcoming} />
 
-          {symptomList.length > 0 ? (
-            <View style={styles.insightsSection}>
-              <Text style={styles.sectionLabel}>Symptômes marquants</Text>
-              <Text style={styles.sectionHint}>
-                Ce qui revient surtout pendant une phase précise de ton cycle
-              </Text>
-              {symptomList.map((insight) => (
-                <InsightCard key={insight.id} insight={insight} onLearnMore={onLearnMore} />
-              ))}
-            </View>
-          ) : null}
+          <View style={styles.insightsSection}>
+            <Text style={styles.sectionLabel}>Symptômes marquants</Text>
+            <Text style={styles.sectionHint}>
+              Ce qui revient surtout pendant une phase précise
+            </Text>
+            {result.symptomInsights.map((insight) => (
+              <InsightCard key={insight.id} insight={insight} onLearnMore={onLearnMore} />
+            ))}
+          </View>
         </>
       )}
     </ScrollView>
@@ -524,12 +373,15 @@ const styles = StyleSheet.create({
   tabScroll: { flex: 1, backgroundColor: BG },
   tabContent: { paddingBottom: 24 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 8,
+  },
+  kicker: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: MUTED,
+    marginBottom: 6,
   },
   headerIconWrap: {
     width: 44,
@@ -542,16 +394,17 @@ const styles = StyleSheet.create({
     borderColor: ROSE + '33',
   },
   intro: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: ROSE_DEEP,
-    letterSpacing: -0.3,
+    fontSize: 26,
+    fontWeight: '700',
+    color: TEXT,
+    letterSpacing: -0.4,
+    lineHeight: 30,
   },
   introSub: {
-    fontSize: 13,
+    fontSize: 14,
     color: MUTED,
-    marginTop: 2,
-    lineHeight: 18,
+    marginTop: 8,
+    lineHeight: 20,
   },
   phaseCard: {
     marginHorizontal: 16,

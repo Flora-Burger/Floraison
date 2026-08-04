@@ -32,7 +32,6 @@ import { OnboardingScreen, type OnboardingResult } from './src/components/Onboar
 import { FirstPeriodBanner } from './src/components/FirstPeriodBanner';
 import { CurrentPhaseCard } from './src/components/CurrentPhaseCard';
 import { SoftPredictionsBanner } from './src/components/SoftPredictionsBanner';
-import { QuickLogBar } from './src/components/QuickLogBar';
 import { PhaseAccentProvider, usePhaseAccent } from './src/context/PhaseAccentContext';
 import {
   hasCompletedOnboarding,
@@ -1039,10 +1038,6 @@ function SuiviTab({
         data={data}
         prefs={predPrefs}
         onResume={() => onPredPrefsChange({ pausePredictions: false })}
-      />
-      <QuickLogBar
-        entry={entry}
-        onChange={(patch) => onUpdateDay(selectedDate, patch)}
       />
       <View style={styles.calendarCard}>
         <Calendar

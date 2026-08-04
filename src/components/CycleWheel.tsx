@@ -56,17 +56,20 @@ function cycleDayToAngle(cycleDay: number, cycleLength: number): number {
 
 function formatDateLabel(dateKey: string): string {
   return parseDateKey(dateKey).toLocaleDateString('fr-FR', {
-    weekday: 'short',
     day: 'numeric',
-    month: 'long',
+    month: 'short',
   });
 }
 
 function formatPeriodCountdown(days: number | null): string {
   if (days === null) return '';
-  if (days === 0) return 'Règles prévues aujourd\'hui';
+  if (days === 0) return 'Règles prévues aujourd’hui';
   if (days === 1) return 'Règles prévues demain';
   return `Règles dans ${days} jours`;
+}
+
+function shortPhaseLabel(shortTitle: string): string {
+  return shortTitle.replace(/^Phase\s+/i, '');
 }
 
 type CycleWheelProps = {
@@ -87,8 +90,11 @@ export function CycleWheel({ data, size = 260 }: CycleWheelProps) {
   const cx = size / 2;
   const cy = size / 2;
   const outerR = size / 2 - 10;
-  const innerR = outerR * 0.52;
+  /** Trou central plus large pour que le texte tienne sans déborder sur l’anneau. */
+  const innerR = outerR * 0.58;
   const indicatorR = (outerR + innerR) / 2;
+  const holePad = 10;
+  const holeSize = Math.max(0, innerR * 2 - holePad);
 
   if (!baseCtx) return null;
 
@@ -99,6 +105,7 @@ export function CycleWheel({ data, size = 260 }: CycleWheelProps) {
   const daysUntilPeriod = getDaysUntilNextPeriod(data, selectedDate);
   const isToday = selectedDate === todayKey();
   const isTodayOnWheel = todayCycleDay !== selectedDay;
+  const countdown = formatPeriodCountdown(daysUntilPeriod);
 
   const phaseColors = Object.fromEntries(CYCLE_PHASES.map((p) => [p.id, p.color])) as Record<
     CyclePhaseId,
@@ -169,7 +176,7 @@ export function CycleWheel({ data, size = 260 }: CycleWheelProps) {
               r={isToday ? 10 : 8}
               fill={isToday ? ROSE_DEEP : '#FFFCF9'}
               stroke={phaseContent?.color ?? ROSE}
-              strokeWidth={isToday ? 3 : 3}
+              strokeWidth={3}
             />
           </G>
         </Svg>
@@ -178,27 +185,29 @@ export function CycleWheel({ data, size = 260 }: CycleWheelProps) {
           style={[
             styles.centerOverlay,
             {
-              left: cx - innerR * 0.85,
-              top: cy - innerR * 0.85,
-              width: innerR * 1.7,
-              height: innerR * 1.7,
+              left: cx - holeSize / 2,
+              top: cy - holeSize / 2,
+              width: holeSize,
+              height: holeSize,
+              borderRadius: holeSize / 2,
             },
           ]}
           pointerEvents="none"
         >
-          {isToday ? (
-            <Text style={styles.todayLabel}>Aujourd’hui</Text>
-          ) : null}
-          <Text style={styles.centerDate} numberOfLines={2}>
+          {isToday ? <Text style={styles.todayLabel}>Aujourd’hui</Text> : null}
+          <Text style={styles.centerDay}>Jour {selectedDay}</Text>
+          <Text
+            style={[styles.centerPhase, { color: phaseContent?.color ?? TEXT }]}
+            numberOfLines={1}
+          >
+            {phaseContent ? shortPhaseLabel(phaseContent.shortTitle) : ''}
+          </Text>
+          <Text style={styles.centerDate} numberOfLines={1}>
             {formatDateLabel(selectedDate)}
           </Text>
-          <Text style={styles.centerDay}>Jour {selectedDay}</Text>
-          <Text style={[styles.centerPhase, { color: phaseContent?.color ?? TEXT }]}>
-            {phaseContent?.shortTitle ?? ''}
-          </Text>
-          <Text style={styles.centerCountdown}>{formatPeriodCountdown(daysUntilPeriod)}</Text>
         </View>
       </View>
+      {countdown ? <Text style={styles.countdown}>{countdown}</Text> : null}
       <Text style={styles.hint}>Glisse sur le cercle pour explorer un jour</Text>
     </View>
   );
@@ -211,22 +220,40 @@ const styles = StyleSheet.create({
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+    paddingHorizontal: 8,
   },
   todayLabel: {
     color: ROSE_DEEP,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     marginBottom: 2,
   },
-  centerDate: {
-    fontSize: 13,
-    fontWeight: '700',
+  centerDay: {
+    fontSize: 18,
+    fontWeight: '800',
     color: TEXT,
-    textAlign: 'center',
-    lineHeight: 17,
+    lineHeight: 22,
   },
-  centerDay: { fontSize: 11, color: MUTED, marginTop: 2 },
-  centerPhase: { fontSize: 12, fontWeight: '600', marginTop: 4, textAlign: 'center' },
-  centerCountdown: { fontSize: 11, color: MUTED, marginTop: 4, textAlign: 'center' },
-  hint: { fontSize: 11, color: MUTED, marginTop: 8, fontStyle: 'italic' },
+  centerPhase: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  centerDate: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: MUTED,
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  countdown: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: TEXT,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  hint: { fontSize: 11, color: MUTED, marginTop: 4, fontStyle: 'italic' },
 });

@@ -55,8 +55,8 @@ npm run test:cycle # tests logiques cycle (sans Jest)
 ## Fonctionnalités principales
 
 - Suivi quotidien (règles, symptômes, humeur, sommeil…) + calendrier prédictif
-- Phase du jour + log rapide (dont mode jour difficile)
-- Insights & motifs (symptômes × phases) + comparaison de cycles
+- Phase du jour
+- Insights (prédictions, comparaison de cycles, symptômes marquants)
 - Mode doux / pause prédictions (auto si cycles très irréguliers, ou manuel)
 - Rappels locaux → ouvrent Suivi au tap
 - Export PDF médecin + export perso JSON/CSV
@@ -66,7 +66,7 @@ npm run test:cycle # tests logiques cycle (sans Jest)
 
 ### PWA (web)
 
-Après `expo export -p web`, le script `scripts/patch-pwa.mjs` ajoute le manifest et un raccourci **Log rapide** (`/?quicklog=1`).
+Après `expo export -p web`, le script `scripts/patch-pwa.mjs` ajoute le manifest et un raccourci qui ouvre Suivi (`/?quicklog=1`).
 
 ## Déployer sur Vercel
 
