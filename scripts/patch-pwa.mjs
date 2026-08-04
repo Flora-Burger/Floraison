@@ -68,6 +68,7 @@ const pwaHead = [
   '<link rel="apple-touch-icon" href="/icon-512.png" />',
   '<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />',
   '<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />',
+  '<meta name="mobile-web-app-capable" content="yes" />',
   '<meta name="apple-mobile-web-app-capable" content="yes" />',
   '<meta name="apple-mobile-web-app-title" content="Floraison" />',
 ].join('\n  ');
@@ -77,8 +78,16 @@ html = html.replace(
   pwaHead,
 );
 
+// Évite les doublons si public/index.html a déjà les metas PWA
 if (!html.includes('manifest.webmanifest')) {
   html = html.replace('</head>', `  ${pwaHead}\n</head>`);
+} else {
+  if (!html.includes('name="mobile-web-app-capable"')) {
+    html = html.replace(
+      '</head>',
+      '  <meta name="mobile-web-app-capable" content="yes" />\n</head>',
+    );
+  }
 }
 
 fs.writeFileSync(indexPath, html);
