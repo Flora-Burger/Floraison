@@ -24,9 +24,6 @@ export function CycleCompareSection({ data }: CycleCompareSectionProps) {
           <Text style={styles.title}>Ce cycle vs le précédent</Text>
         </View>
         <Text style={styles.summary}>{compare.summary}</Text>
-        {compare.hardDaysLine ? (
-          <Text style={styles.hardLine}>{compare.hardDaysLine}</Text>
-        ) : null}
         <View style={styles.statsRow}>
           <View style={styles.stat}>
             <Text style={styles.statValue}>{compare.currentDay}</Text>
@@ -82,14 +79,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     color: MUTED,
-    marginBottom: 8,
-  },
-  hardLine: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: TEXT,
     marginBottom: 12,
-    fontWeight: '600',
   },
   statsRow: {
     flexDirection: 'row',

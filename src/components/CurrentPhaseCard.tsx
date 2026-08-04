@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { formatPhaseHero, getPhaseById } from '../constants/cycleContent';
-import { BG_SOFT, BORDER, MUTED, ROSE, TEXT } from '../constants/theme';
+import { BG_SOFT, BORDER, MUTED, TEXT } from '../constants/theme';
 import { usePhaseAccent } from '../context/PhaseAccentContext';
 import { todayKey } from '../lib/dates';
 import { getCycleContextForDate } from '../lib/cyclePhase';
@@ -35,7 +35,6 @@ export function CurrentPhaseCard({ data }: CurrentPhaseCardProps) {
 
   return (
     <View style={styles.card} accessibilityRole="summary">
-      <Text style={[styles.eyebrow, { color: ROSE }]}>Aujourd’hui</Text>
       <Text style={styles.title}>{phase.shortTitle}</Text>
       <Text style={styles.body} numberOfLines={3}>
         {hero.subtitle}
@@ -54,13 +53,6 @@ const styles = StyleSheet.create({
     backgroundColor: BG_SOFT,
     borderWidth: 1,
     borderColor: BORDER,
-  },
-  eyebrow: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-    marginBottom: 4,
   },
   title: {
     fontSize: 17,
