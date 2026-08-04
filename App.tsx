@@ -30,7 +30,6 @@ import { PrivacyPolicyScreen } from './src/components/PrivacyPolicyScreen';
 import { PasswordResetScreen } from './src/components/PasswordResetScreen';
 import { OnboardingScreen, type OnboardingResult } from './src/components/OnboardingScreen';
 import { FirstPeriodBanner } from './src/components/FirstPeriodBanner';
-import { CurrentPhaseCard } from './src/components/CurrentPhaseCard';
 import { SoftPredictionsBanner } from './src/components/SoftPredictionsBanner';
 import { PhaseAccentProvider, usePhaseAccent } from './src/context/PhaseAccentContext';
 import {
@@ -47,6 +46,7 @@ import {
 } from './src/lib/cycleDataCache';
 import { handleAuthDeepLink } from './src/lib/authDeepLink';
 import { NAV_TABS, TabIcon, type TabId } from './src/components/TabIcon';
+import { getCycleContextForDate } from './src/lib/cyclePhase';
 import {
   BG,
   BG_SOFT,
@@ -1033,7 +1033,6 @@ function SuiviTab({
       {!hasAnyPeriod && onStartPeriodSetup ? (
         <FirstPeriodBanner onStartOnboarding={onStartPeriodSetup} />
       ) : null}
-      <CurrentPhaseCard data={data} onStartPeriodSetup={onStartPeriodSetup} />
       <SoftPredictionsBanner
         data={data}
         prefs={predPrefs}
@@ -1154,6 +1153,12 @@ function AppRoot() {
   const pendingNotifNavRef = useRef(false);
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
+
+  const { setPhase: setCyclePhase } = usePhaseAccent();
+  useEffect(() => {
+    const ctx = getCycleContextForDate(cycleData, todayKey());
+    setCyclePhase(ctx?.phase ?? null);
+  }, [cycleData, setCyclePhase]);
 
   const openSuiviLogToday = useCallback(() => {
     setActiveTab('suivi');
