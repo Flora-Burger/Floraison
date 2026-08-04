@@ -47,6 +47,7 @@ import {
 import { handleAuthDeepLink } from './src/lib/authDeepLink';
 import { NAV_TABS, TabIcon, type TabId } from './src/components/TabIcon';
 import { getCycleContextForDate } from './src/lib/cyclePhase';
+import { getPhaseById } from './src/constants/cycleContent';
 import {
   BG,
   BG_SOFT,
@@ -1004,6 +1005,8 @@ function SuiviTab({
   const hasHistory = getPeriodStarts(data).length >= 2;
   const hasAnyPeriod = getPeriodStarts(data).length >= 1;
   const { accent } = usePhaseAccent();
+  const phaseContext = useMemo(() => getCycleContextForDate(data, todayKey()), [data]);
+  const phaseTitle = phaseContext ? getPhaseById(phaseContext.phase).shortTitle : null;
 
   const entry = data[selectedDate] ?? {};
 
@@ -1038,6 +1041,14 @@ function SuiviTab({
         prefs={predPrefs}
         onResume={() => onPredPrefsChange({ pausePredictions: false })}
       />
+      {phaseTitle ? (
+        <View style={styles.phaseHeading} accessibilityRole="header">
+          <Text style={[styles.phaseHeadingLabel, { color: accent.accent }]}>
+            {phaseTitle}
+          </Text>
+          <View style={[styles.phaseHeadingRule, { backgroundColor: accent.accent }]} />
+        </View>
+      ) : null}
       <View style={styles.calendarCard}>
         <Calendar
           current={selectedDate}
@@ -1774,6 +1785,24 @@ const styles = StyleSheet.create({
       ios: { shadowColor: ROSE, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12 },
       android: { elevation: 3 },
     }),
+  },
+  phaseHeading: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 4,
+    alignItems: 'flex-start',
+  },
+  phaseHeadingLabel: {
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  phaseHeadingRule: {
+    marginTop: 8,
+    width: 36,
+    height: 3,
+    borderRadius: 2,
+    opacity: 0.85,
   },
   calendar: { borderRadius: 16 },
   calendarDayWrapper: {
