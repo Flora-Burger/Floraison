@@ -27,6 +27,7 @@ import {
   shouldPausePredictions,
   type PredictionPrefs,
 } from '../lib/predictionPrefs';
+import { usePhaseAccent } from '../context/PhaseAccentContext';
 import {
   BG,
   BG_SOFT,
@@ -282,11 +283,12 @@ export function InsightsTab({
   const nextPeriodLabel = useMemo(() => formatNextPeriodRangeLabel(data, todayKey()), [data]);
   const nextPeriodWindow = useMemo(() => getNextPeriodWindow(data, todayKey()), [data]);
   const regularity = useMemo(() => getCycleRegularity(data), [data]);
+  const { chrome } = usePhaseAccent();
 
   return (
     <ScrollView style={styles.tabScroll} contentContainerStyle={styles.tabContent}>
       <View style={styles.header}>
-        <Text style={styles.kicker}>Insights</Text>
+        <Text style={[styles.kicker, { color: chrome }]}>Insights</Text>
         <Text style={styles.intro}>Tendances & prédictions</Text>
         <Text style={styles.introSub}>
           {hasInsights

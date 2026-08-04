@@ -1,4 +1,5 @@
 import type { CyclePhaseId } from '../types/cycle';
+import { ROSE_DEEP } from './theme';
 
 /** Accents ciblés (CTA, bordures actives, underline) — pas fond ni texte principal. */
 export type PhaseAccent = {
@@ -43,6 +44,12 @@ export const PHASE_ACCENTS: Record<CyclePhaseId, PhaseAccent> = {
 };
 
 export const DEFAULT_PHASE_ACCENT: PhaseAccent = PHASE_ACCENTS.folliculaire;
+
+/** Titre app, onglets, réglages : rose de marque pendant les règles, sinon couleur de phase. */
+export function getChromeColor(phase: CyclePhaseId | null | undefined): string {
+  if (!phase || phase === 'menstruelle') return ROSE_DEEP;
+  return PHASE_ACCENTS[phase]?.accent ?? ROSE_DEEP;
+}
 
 export function getPhaseAccent(phase: CyclePhaseId | null | undefined): PhaseAccent {
   if (!phase) return DEFAULT_PHASE_ACCENT;

@@ -1165,7 +1165,7 @@ function AppRoot() {
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
 
-  const { setPhase: setCyclePhase } = usePhaseAccent();
+  const { setPhase: setCyclePhase, chrome } = usePhaseAccent();
   useEffect(() => {
     const ctx = getCycleContextForDate(cycleData, todayKey());
     setCyclePhase(ctx?.phase ?? null);
@@ -1616,7 +1616,7 @@ function AppRoot() {
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
       <View style={styles.topBar}>
-        <Text style={styles.appTitle}>Floraison</Text>
+        <Text style={[styles.appTitle, { color: chrome }]}>Floraison</Text>
       </View>
 
       {syncError ? <Text style={styles.syncBanner}>{syncError}</Text> : null}
@@ -1674,7 +1674,7 @@ function MainTabBar({
   activeTab: TabId;
   onChangeTab: (id: TabId) => void;
 }) {
-  const { accent } = usePhaseAccent();
+  const { chrome } = usePhaseAccent();
   return (
     <View style={styles.bottomTabBar}>
       {NAV_TABS.map((tab) => {
@@ -1684,18 +1684,18 @@ function MainTabBar({
             key={tab.id}
             style={[
               styles.bottomTab,
-              isActive && { borderTopColor: accent.accent, borderTopWidth: 2 },
+              isActive && { borderTopColor: chrome, borderTopWidth: 2 },
             ]}
             onPress={() => onChangeTab(tab.id)}
             accessibilityRole="tab"
             accessibilityState={{ selected: isActive }}
             accessibilityLabel={tab.label}
           >
-            <TabIcon icon={tab.Icon} active={isActive} activeColor={accent.accent} />
+            <TabIcon icon={tab.Icon} active={isActive} activeColor={chrome} />
             <Text
               style={[
                 styles.bottomTabText,
-                isActive && { color: accent.accent, fontWeight: '700' },
+                isActive && { color: chrome, fontWeight: '700' },
               ]}
             >
               {tab.label}
@@ -1721,7 +1721,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  appTitle: { fontSize: 20, fontWeight: '700', color: ROSE_DEEP, letterSpacing: 0.3 },
+  appTitle: { fontSize: 20, fontWeight: '700', letterSpacing: 0.3 },
   mainContent: { flex: 1 },
   bottomTabBar: {
     flexDirection: 'row',

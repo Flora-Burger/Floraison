@@ -30,6 +30,7 @@ import {
 } from '../lib/notificationPrefs';
 import { type PredictionPrefs } from '../lib/predictionPrefs';
 import { PinSetupModal } from './PinSetupModal';
+import { usePhaseAccent } from '../context/PhaseAccentContext';
 import {
   BG_SOFT,
   BORDER,
@@ -65,6 +66,7 @@ export function SettingsTab({
   predPrefs,
   onPredPrefsChange,
 }: SettingsTabProps) {
+  const { chrome } = usePhaseAccent();
   const [exporting, setExporting] = useState(false);
   const [exportingPersonal, setExportingPersonal] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -196,7 +198,7 @@ export function SettingsTab({
   return (
     <>
       <ScrollView style={styles.tabScroll} contentContainerStyle={styles.tabContent}>
-        <Text style={styles.intro}>Les paramètres</Text>
+        <Text style={[styles.intro, { color: chrome }]}>Les paramètres</Text>
 
         {userEmail ? (
           <View style={styles.accountCard}>
@@ -209,8 +211,8 @@ export function SettingsTab({
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Rappels</Text>
             <View style={styles.settingCard}>
-              <View style={[styles.iconWrap, { backgroundColor: ROSE + '22' }]}>
-                <Bell size={ICON_SIZES.header} weight="duotone" color={ROSE_DEEP} />
+              <View style={[styles.iconWrap, { backgroundColor: chrome + '22' }]}>
+                <Bell size={ICON_SIZES.header} weight="duotone" color={chrome} />
               </View>
               <View style={styles.settingText}>
                 <Text style={styles.settingTitle}>Rappel quotidien</Text>
@@ -224,7 +226,10 @@ export function SettingsTab({
                         key={h}
                         style={[
                           styles.prefChip,
-                          notifPrefs.dailyHour === h && styles.prefChipOn,
+                          notifPrefs.dailyHour === h && {
+                            backgroundColor: chrome,
+                            borderColor: chrome,
+                          },
                         ]}
                         onPress={() => void updateNotifPrefs({ ...notifPrefs, dailyHour: h })}
                         accessibilityRole="button"
@@ -245,12 +250,12 @@ export function SettingsTab({
                 ) : null}
               </View>
               {notifLoading ? (
-                <ActivityIndicator color={ROSE} />
+                <ActivityIndicator color={chrome} />
               ) : (
                 <Switch
                   value={notifPrefs.dailyEnabled}
                   onValueChange={(v) => void handleDailyToggle(v)}
-                  trackColor={{ false: BORDER, true: ROSE }}
+                  trackColor={{ false: BORDER, true: chrome }}
                   thumbColor="#FFFCF9"
                   accessibilityLabel="Activer le rappel quotidien"
                 />
@@ -258,7 +263,7 @@ export function SettingsTab({
             </View>
             <View style={styles.settingCard}>
               <View style={[styles.iconWrap, { backgroundColor: SAGE_LIGHT + '55' }]}>
-                <Bell size={ICON_SIZES.header} weight="fill" color={ROSE_DEEP} />
+                <Bell size={ICON_SIZES.header} weight="fill" color={chrome} />
               </View>
               <View style={styles.settingText}>
                 <Text style={styles.settingTitle}>Avant tes règles</Text>
@@ -273,7 +278,10 @@ export function SettingsTab({
                         key={d}
                         style={[
                           styles.prefChip,
-                          notifPrefs.periodDaysBefore === d && styles.prefChipOn,
+                          notifPrefs.periodDaysBefore === d && {
+                            backgroundColor: chrome,
+                            borderColor: chrome,
+                          },
                         ]}
                         onPress={() =>
                           void updateNotifPrefs({ ...notifPrefs, periodDaysBefore: d })
@@ -296,12 +304,12 @@ export function SettingsTab({
                 ) : null}
               </View>
               {notifLoading ? (
-                <ActivityIndicator color={ROSE} />
+                <ActivityIndicator color={chrome} />
               ) : (
                 <Switch
                   value={notifPrefs.periodEnabled}
                   onValueChange={(v) => void handlePeriodToggle(v)}
-                  trackColor={{ false: BORDER, true: ROSE }}
+                  trackColor={{ false: BORDER, true: chrome }}
                   thumbColor="#FFFCF9"
                   accessibilityLabel="Activer le rappel avant les règles"
                 />
@@ -314,7 +322,7 @@ export function SettingsTab({
           <Text style={styles.sectionTitle}>Cycle</Text>
           <View style={styles.settingCard}>
             <View style={[styles.iconWrap, { backgroundColor: SAGE_LIGHT + '55' }]}>
-              <AirplaneTilt size={ICON_SIZES.header} weight="duotone" color={ROSE_DEEP} />
+              <AirplaneTilt size={ICON_SIZES.header} weight="duotone" color={chrome} />
             </View>
             <View style={styles.settingText}>
               <Text style={styles.settingTitle}>Jour local (voyage)</Text>
@@ -326,7 +334,7 @@ export function SettingsTab({
           </View>
           <View style={styles.settingCard}>
             <View style={[styles.iconWrap, { backgroundColor: SAGE_LIGHT + '55' }]}>
-              <Compass size={ICON_SIZES.header} weight="duotone" color={ROSE_DEEP} />
+              <Compass size={ICON_SIZES.header} weight="duotone" color={chrome} />
             </View>
             <View style={styles.settingText}>
               <Text style={styles.settingTitle}>Mettre les prédictions en pause</Text>
@@ -338,7 +346,7 @@ export function SettingsTab({
             <Switch
               value={predPrefs.pausePredictions}
               onValueChange={(v) => onPredPrefsChange({ pausePredictions: v })}
-              trackColor={{ false: BORDER, true: ROSE }}
+              trackColor={{ false: BORDER, true: chrome }}
               thumbColor="#FFFCF9"
               accessibilityLabel="Mettre les prédictions en pause"
             />
@@ -347,7 +355,7 @@ export function SettingsTab({
 
         <View style={styles.settingCard}>
           <View style={[styles.iconWrap, { backgroundColor: SAGE_LIGHT + '55' }]}>
-            <Lock size={ICON_SIZES.header} weight={pinEnabled ? 'fill' : 'regular'} color={ROSE_DEEP} />
+            <Lock size={ICON_SIZES.header} weight={pinEnabled ? 'fill' : 'regular'} color={chrome} />
           </View>
           <View style={styles.settingText}>
             <Text style={styles.settingTitle}>Code PIN au démarrage</Text>
@@ -360,7 +368,7 @@ export function SettingsTab({
           <Switch
             value={pinEnabled}
             onValueChange={handlePinToggle}
-            trackColor={{ false: BORDER, true: ROSE }}
+            trackColor={{ false: BORDER, true: chrome }}
             thumbColor="#FFFCF9"
             accessibilityLabel="Activer le code PIN au démarrage"
           />
@@ -373,8 +381,8 @@ export function SettingsTab({
           accessibilityRole="button"
           accessibilityLabel="Ouvrir le résumé pour mon médecin"
         >
-          <View style={[styles.iconWrap, { backgroundColor: ROSE + '22' }]}>
-            <FirstAidKit size={ICON_SIZES.header} weight="duotone" color={ROSE_DEEP} />
+          <View style={[styles.iconWrap, { backgroundColor: chrome + '22' }]}>
+            <FirstAidKit size={ICON_SIZES.header} weight="duotone" color={chrome} />
           </View>
           <View style={styles.actionText}>
             <Text style={styles.actionTitle}>Pour mon médecin</Text>
@@ -392,11 +400,11 @@ export function SettingsTab({
           accessibilityRole="button"
           accessibilityLabel="Exporter le rapport PDF"
         >
-          <View style={[styles.iconWrap, { backgroundColor: ROSE + '22' }]}>
+          <View style={[styles.iconWrap, { backgroundColor: chrome + '22' }]}>
             {exporting ? (
-              <ActivityIndicator color={ROSE_DEEP} />
+              <ActivityIndicator color={chrome} />
             ) : (
-              <FilePdf size={ICON_SIZES.header} weight="fill" color={ROSE_DEEP} />
+              <FilePdf size={ICON_SIZES.header} weight="fill" color={chrome} />
             )}
           </View>
           <View style={styles.actionText}>
@@ -417,9 +425,9 @@ export function SettingsTab({
         >
           <View style={[styles.iconWrap, { backgroundColor: SAGE_LIGHT + '55' }]}>
             {exportingPersonal ? (
-              <ActivityIndicator color={ROSE_DEEP} />
+              <ActivityIndicator color={chrome} />
             ) : (
-              <DownloadSimple size={ICON_SIZES.header} weight="bold" color={ROSE_DEEP} />
+              <DownloadSimple size={ICON_SIZES.header} weight="bold" color={chrome} />
             )}
           </View>
           <View style={styles.actionText}>
@@ -439,7 +447,7 @@ export function SettingsTab({
           accessibilityLabel="Exporter mes données en CSV"
         >
           <View style={[styles.iconWrap, { backgroundColor: SAGE_LIGHT + '55' }]}>
-            <DownloadSimple size={ICON_SIZES.header} weight="duotone" color={ROSE_DEEP} />
+            <DownloadSimple size={ICON_SIZES.header} weight="duotone" color={chrome} />
           </View>
           <View style={styles.actionText}>
             <Text style={styles.actionTitle}>Export perso (CSV)</Text>
@@ -457,7 +465,7 @@ export function SettingsTab({
           accessibilityLabel="Politique de confidentialité"
         >
           <View style={[styles.iconWrap, { backgroundColor: SAGE_LIGHT + '55' }]}>
-            <Shield size={ICON_SIZES.header} weight="fill" color={ROSE_DEEP} />
+            <Shield size={ICON_SIZES.header} weight="fill" color={chrome} />
           </View>
           <View style={styles.actionText}>
             <Text style={styles.actionTitle}>Politique de confidentialité</Text>
@@ -538,7 +546,6 @@ const styles = StyleSheet.create({
   intro: {
     fontSize: 20,
     fontWeight: '700',
-    color: ROSE_DEEP,
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 12,
@@ -590,10 +597,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: BORDER,
     backgroundColor: BG_SOFT,
-  },
-  prefChipOn: {
-    backgroundColor: ROSE,
-    borderColor: ROSE,
   },
   prefChipText: { fontSize: 12, fontWeight: '700', color: TEXT },
   prefChipTextOn: { color: '#FFFCF9' },

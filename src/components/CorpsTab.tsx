@@ -152,7 +152,7 @@ export function CorpsTab({
 
   const ctx = useMemo(() => getCycleContextForDate(data, todayKey()), [data]);
   const hero = ctx ? formatPhaseHero(getPhaseById(ctx.phase)) : null;
-  const { accent } = usePhaseAccent();
+  const { accent, chrome } = usePhaseAccent();
   const phase = ctx ? getPhaseById(ctx.phase) : null;
 
   const toggle = (id: string) => {
@@ -167,7 +167,7 @@ export function CorpsTab({
       contentContainerStyle={styles.tabContent}
     >
       <View style={styles.header}>
-        <Text style={styles.kicker}>Corps</Text>
+        <Text style={[styles.kicker, { color: chrome }]}>Corps</Text>
         <Text style={styles.intro}>Ce qui se passe maintenant</Text>
         <Text style={styles.introSub}>
           Phase en cours, puis les articles pour comprendre mécanismes et symptômes.
